@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบคลังสินค้า - ตรวจสอบใบเบิก</title>
+    <script src="https://cdn.tailwindcss.com/"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: white; }
+            .print-container { box-shadow: none; border: none; max-width: 100%; padding: 0; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-5xl mx-auto bg-white shadow-lg rounded-2xl p-8 print-container">
+        
+        <header class="flex flex-wrap gap-4 justify-between items-center mb-8 border-b pb-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">รายการขอเบิกสินค้า (คลังสินค้า)</h1>
+                <p class="text-gray-500">สาขาสุขุมวิท 33</p>
+                <a href="./index.html" class="text-indigo-700 text-sm no-print">← เปิดหน้าเบิกสินค้า</a>
+            </div>
+            <div class="flex flex-wrap gap-2 no-print">
+                <input type="date" id="filter-date" class="px-4 py-2 border border-gray-300 rounded-lg">
+                <button id="refresh-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> ดึงข้อมูล</button>
+                <button id="print-btn" disabled class="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 flex items-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> พิมพ์ใบเบิก</button>
+            </div>
+        </header>
+
+        <div id="loading" class="text-center py-10 hidden no-print text-gray-500">กำลังโหลดข้อมูล...</div>
+
+        <p id="filter-summary" role="status" class="mb-4 text-sm text-gray-600"></p>
+        <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 border">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-sm font-bold text-gray-700">เลขที่ใบเบิก</th>
+                    <th class="px-4 py-3 text-left text-sm font-bold text-gray-700">รหัสสินค้า / บาร์โค้ด</th>
+                    <th class="px-4 py-3 text-left text-sm font-bold text-gray-700">ชื่อสินค้า</th>
+                    <th class="px-4 py-3 text-right text-sm font-bold text-gray-700">จำนวนที่ต้องจัด</th>
+                </tr>
+            </thead>
+            <tbody id="data-body" class="divide-y divide-gray-200">
+                <tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">กรุณากดปุ่มดึงข้อมูล</td></tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <script src="./config.js"></script>
+    <script src="./api.js"></script>
+    <script src="./warehouse.js"></script>
+</body>
+</html>
