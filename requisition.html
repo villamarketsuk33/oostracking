@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#17365c"><meta name="referrer" content="no-referrer">
   <title>Villa Market · เบิกสินค้าลงหน้าร้าน</title>
-  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="requisition.css">
-  <script src="config.js" defer></script><script src="https://static.line-scdn.net/liff/edge/2/sdk.js" defer></script><script src="line-auth.js" defer></script><script src="export-gate.js" defer></script><script src="requisition-demo.js" defer></script><script src="requisition.js" defer></script>
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="camera.css?v=20261008"><link rel="stylesheet" href="requisition.css">
+  <script src="config.js" defer></script><script src="https://static.line-scdn.net/liff/edge/2/sdk.js" defer></script><script src="line-auth.js" defer></script><script src="export-gate.js" defer></script><script src="requisition-demo.js" defer></script><script src="barcode-camera.js?v=20261008" defer></script><script src="requisition.js?v=20261008" defer></script>
 </head>
 <body class="rq-body">
   <div id="rq-demo" class="demo-banner" hidden>ข้อมูลจำลองสำหรับทดลองหน้าจอ · ไม่บันทึก Google Sheets และไม่ใช่ใบเบิกจริง</div>
@@ -20,7 +20,12 @@
       <div id="rq-new-view" class="rq-grid">
         <section class="panel rq-panel"><div class="rq-section-heading"><span class="rq-step">01</span><div><h2>เลือกรายการสินค้า</h2><p class="small muted">คงเหลือ Z คือยอดทั้งร้าน ต้องตรวจของในคลังก่อนจัด</p></div></div>
           <form id="rq-search-form"><div class="rq-search-controls"><label>ค้นหาจาก<select id="rq-lookup-type"><option value="barcode">บาร์โค้ด</option><option value="sku">รหัสสินค้า E</option><option value="name">ชื่อสินค้า</option></select></label><label class="rq-grow">ชื่อสินค้า / รหัส / บาร์โค้ด<input id="rq-query" required maxlength="120" autocomplete="off" placeholder="คงเลข 0 นำหน้าไว้ครบ"></label></div><div class="rq-inline"><button class="btn primary" id="rq-search-btn">ค้นหาสินค้า</button><button type="button" id="rq-camera-btn" class="btn secondary">เปิดกล้องสแกน</button></div></form>
-          <div id="rq-camera-box" hidden><div id="rq-camera-reader"></div><button id="rq-camera-stop" class="text-btn">ปิดกล้อง</button></div>
+          <div id="rq-camera-box" class="barcode-camera" hidden><div class="camera-view"><div id="rq-camera-reader" class="camera-reader"></div><div class="camera-guide" aria-hidden="true"></div></div><div class="camera-controls">
+      <label data-camera-choice hidden>เลือกกล้อง <select data-camera-select aria-label="เลือกกล้องที่ภาพคมชัด"></select></label>
+      <label data-camera-zoom-label hidden><span class="camera-zoom-head">ซูม <output data-camera-zoom-value>1.0×</output></span><input data-camera-zoom type="range" aria-label="ซูมกล้อง"></label>
+      <div class="camera-buttons"><button type="button" class="btn secondary" data-camera-focus hidden>โฟกัสใหม่</button><button type="button" class="btn secondary" data-camera-torch aria-pressed="false" hidden>เปิดไฟฉาย</button></div>
+      <p class="camera-status" data-camera-status role="status" aria-live="polite"></p><p class="camera-hint" data-camera-hint></p>
+    </div><button type="button" class="text-btn" id="rq-camera-stop">ปิดกล้อง</button></div>
           <div id="rq-name-results" class="rq-name-results" aria-live="polite"></div><p id="rq-search-error" class="form-error" role="alert"></p><p id="rq-demo-hint" class="small muted" hidden>ลองรหัสสินค้า 0030033, 0181279 หรือ 0258362</p>
           <div id="rq-search-empty" class="rq-placeholder"><span>▥</span><p>สแกนสินค้าจากหน้าร้าน<br>หรือค้นด้วยชื่อ / รหัสสินค้าใน ProductList</p></div>
           <form id="rq-item-form" hidden><div id="rq-product" class="rq-product"></div><div class="two-fields"><label>จำนวนเบิก<input id="rq-qty" type="number" required min="0.001" max="100000" step="0.001" value="1"></label><label>หน่วยตามรหัสสินค้านี้<input id="rq-unit" required maxlength="30" placeholder="เช่น ชิ้น / แพ็ก / กก."></label></div><label>Section / ตำแหน่งที่จะเติม<input id="rq-section" required maxlength="80" placeholder="เช่น A5 หรือ Section 16"></label><label>สาเหตุ<select id="rq-reason"><option>หน้าชั้นหมด</option><option>ใกล้หมด</option><option>เติมตามรอบ</option></select></label><label>หมายเหตุ<input id="rq-note" maxlength="300" placeholder="เช่น ป้ายเก็บอยู่ในซอง Section"></label><label class="check-row"><input id="rq-unit-confirm" type="checkbox" required><span>ตรวจสินค้าและหน่วยตรงกับรหัส E แล้ว ไม่รวมจำนวนชิ้นกับแพ็ก</span></label><button id="rq-add-btn" class="btn primary full">+ เพิ่มลงใบเบิก</button></form>

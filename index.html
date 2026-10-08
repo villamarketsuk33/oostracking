@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#172d32"><meta name="referrer" content="no-referrer">
   <title>OOS — ติดตามสินค้าและป้าย</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="config.js" defer></script><script src="https://static.line-scdn.net/liff/edge/2/sdk.js" defer></script><script src="line-auth.js" defer></script><script src="demo.js" defer></script><script src="export-gate.js" defer></script><script src="app.js" defer></script>
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="camera.css?v=20261008">
+  <script src="config.js" defer></script><script src="https://static.line-scdn.net/liff/edge/2/sdk.js" defer></script><script src="line-auth.js" defer></script><script src="demo.js" defer></script><script src="export-gate.js" defer></script><script src="barcode-camera.js?v=20261008" defer></script><script src="app.js?v=20261008" defer></script>
 </head>
 <body>
   <div class="demo-banner" id="demo-banner" hidden>โหมดตัวอย่าง · ข้อมูลจำลอง ไม่บันทึกลงชีท</div>
@@ -39,7 +39,12 @@
   </main>
   <dialog id="scan-dialog"><div class="dialog-heading"><div><span class="eyebrow">สแกนป้ายสินค้า</span><h2 id="scan-title">บันทึกสินค้า OOS</h2></div><button class="icon-btn" data-close="scan-dialog" aria-label="ปิด">×</button></div>
     <form id="lookup-form"><label>บาร์โค้ด<div class="input-action"><input id="barcode" inputmode="numeric" autocomplete="off" required maxlength="40" placeholder="สแกนหรือพิมพ์บาร์โค้ด"><button class="btn primary" id="lookup-btn">ค้นหา</button></div></label></form>
-    <button class="btn camera-btn full" id="camera-btn">▥ เปิดกล้องสแกน</button><div id="camera-box" hidden><div id="camera-reader"></div><button class="text-btn" id="stop-camera">หยุดกล้อง</button></div>
+    <button class="btn camera-btn full" id="camera-btn">▥ เปิดกล้องสแกน</button><div id="camera-box" class="barcode-camera" hidden><div class="camera-view"><div id="camera-reader" class="camera-reader"></div><div class="camera-guide" aria-hidden="true"></div></div><div class="camera-controls">
+      <label data-camera-choice hidden>เลือกกล้อง <select data-camera-select aria-label="เลือกกล้องที่ภาพคมชัด"></select></label>
+      <label data-camera-zoom-label hidden><span class="camera-zoom-head">ซูม <output data-camera-zoom-value>1.0×</output></span><input data-camera-zoom type="range" aria-label="ซูมกล้อง"></label>
+      <div class="camera-buttons"><button type="button" class="btn secondary" data-camera-focus hidden>โฟกัสใหม่</button><button type="button" class="btn secondary" data-camera-torch aria-pressed="false" hidden>เปิดไฟฉาย</button></div>
+      <p class="camera-status" data-camera-status role="status" aria-live="polite"></p><p class="camera-hint" data-camera-hint></p>
+    </div><button type="button" class="text-btn" id="stop-camera">หยุดกล้อง</button></div>
     <p id="scan-error" class="form-error" role="alert"></p>
     <form id="create-form" hidden><div id="lookup-product" class="product-preview"></div><div class="two-fields"><label>Section<input id="new-section" required maxlength="40" placeholder="เช่น 12"></label><label>ตำแหน่งเก็บป้าย<input id="new-location" maxlength="120" placeholder="เช่น top stock ช่องซ้าย"></label></div><p id="section-hint" class="small muted"></p><label>หมายเหตุ (ถ้ามี)<input id="new-note" maxlength="500"></label><label class="check-row"><input type="checkbox" id="confirm-zero" required><span>ตรวจสต๊อกแล้วเป็น 0 และนำป้ายออกแล้ว</span></label><button class="btn primary full" id="save-oos">บันทึก OOS และจำ Section</button></form>
     <div id="existing-record" hidden></div><p id="demo-scan-hint" class="small muted" hidden>ลองพิมพ์ DEMO-NEW เพื่อเพิ่มสินค้า หรือ DEMO-001 เพื่อเติมรายการตัวอย่าง</p>

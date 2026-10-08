@@ -1,0 +1,12 @@
+.barcode-camera{margin:14px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.camera-view{position:relative;min-height:100px;background:#172d32}
+.camera-reader{width:100%}
+.camera-reader video{display:block;width:100%!important;height:auto!important;object-fit:contain}
+.camera-guide{position:absolute;inset:12% 5%;border:2px solid #ffffffb3;border-radius:8px;pointer-events:none;box-shadow:0 0 0 1px #172d3240}
+.camera-guide::after{content:'ให้เห็นบาร์โค้ดครบทั้งแถบ';position:absolute;left:0;right:0;top:0;padding:4px;text-align:center;color:#fff;background:#172d3299;font-size:11px}
+.camera-controls{padding:12px 14px}.camera-controls label{margin:0 0 10px;font-size:12px}.camera-controls select{font:inherit;width:100%;margin-top:5px;padding:9px;border:1px solid var(--line);border-radius:8px;background:#fff;min-height:44px}
+.camera-controls input[type=range]{display:block;width:100%;padding:0;min-height:40px;accent-color:var(--green);border:0;cursor:pointer;margin-top:0}
+.camera-zoom-head{display:flex;justify-content:space-between;align-items:center}.camera-zoom-head output{font-family:Arial,sans-serif;font-size:14px;font-weight:700}
+.camera-buttons{display:flex;flex-wrap:wrap;gap:8px}.camera-buttons .btn{flex:1;padding:9px 12px;font-size:13px;min-height:44px}.camera-controls .camera-status{font-size:12px;color:var(--green);margin:10px 0 4px}.camera-controls .camera-hint{font-size:12px;color:var(--muted);margin:0;line-height:1.7}
+#camera-box .text-btn,#rq-camera-box .text-btn{display:block;width:100%;margin:0;min-height:44px;border-top:1px solid var(--line)}
+#rq-camera-box.barcode-camera{padding:0}

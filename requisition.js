@@ -2,7 +2,7 @@
   'use strict';
   const $=id=>document.getElementById(id), config=window.OOS_CONFIG||{};
   const demo=config.demo===true||new URLSearchParams(location.search).get('demo')==='1';
-  const state={auth:null,cart:[],lookup:null,pending:null,document:null,cancel:false,scanner:null,busy:false,round:null};
+  const state={auth:null,cart:[],lookup:null,pending:null,document:null,cancel:false,busy:false,round:null};
   const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
   const time=v=>v?new Intl.DateTimeFormat('th-TH',{dateStyle:'short',timeStyle:'short',timeZone:'Asia/Bangkok'}).format(new Date(v)):'—';
   const count=v=>Number(v).toLocaleString('th-TH',{maximumFractionDigits:3});
@@ -93,6 +93,7 @@
     lock(false);
   }
   function selectView(history) {
+    if(history)stopCamera();
     $('rq-new-view').hidden=history;$('rq-history-view').hidden=!history;
     $('rq-tab-new').classList.toggle('active',!history);$('rq-tab-history').classList.toggle('active',history);
     if(history)loadHistory();
@@ -109,6 +110,8 @@
     }
     lock(true);
     try {
+      await stopCamera();
+      $('rq-camera-btn').disabled=true;
       const data=await api('req.create',state.pending);
       if(!data.document?.id||!Array.isArray(data.document.items))throw new Error('ระบบยังไม่ยืนยันเลขที่ใบเบิก กรุณาลองคำขอเดิม');
       state.pending=null;state.cart=[];if(!demo)storage.remove(pendingKey());
@@ -179,25 +182,18 @@
     $('rq-finish-help').textContent=cancel?'ระบุเหตุผล หากเติมบางส่วนแล้ว ให้บันทึกจำนวนที่เติมไว้ในหมายเหตุ ก่อนออกใบใหม่เฉพาะส่วนที่เหลือ':'ใช้เมื่อเติมครบทุกบรรทัดแล้ว หากยังไม่ครบให้คงใบเบิกไว้เป็นงานค้าง';
     $('rq-finish-checks').hidden=cancel;$('rq-confirm-filled').required=!cancel;$('rq-confirm-label').required=!cancel;$('rq-finish-note').required=cancel;$('rq-finish-dialog').showModal();
   }
-  let cameraGeneration=0;
-  async function stopCamera() {
-    cameraGeneration++;const scanner=state.scanner;state.scanner=null;
-    if(scanner){try{await scanner.stop();scanner.clear();}catch{}}$('rq-camera-box').hidden=true;$('rq-camera-btn').disabled=false;
-  }
+  const barcodeCamera = window.BarcodeCamera.create({boxId:'rq-camera-box',readerId:'rq-camera-reader',
+    onDetected:async code=>{$('rq-query').value=code;$('rq-lookup-type').value='barcode';await lookup();},
+    onError:message=>{$('rq-search-error').textContent=message;}
+  });
+  async function stopCamera() {await barcodeCamera.stop();$('rq-camera-btn').disabled=false;}
   async function startCamera() {
-    if(state.scanner||state.pending)return;
-    const generation=++cameraGeneration;$('rq-camera-btn').disabled=true;
-    try {
-      if(!window.isSecureContext)throw new Error('กล้องต้องเปิดผ่าน HTTPS ใช้เครื่องสแกนหรือพิมพ์รหัสแทนได้');
-      if(!window.Html5Qrcode)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='vendor/html5-qrcode.min.js';script.onload=resolve;script.onerror=()=>reject(new Error('โหลดกล้องไม่ได้ กรุณาพิมพ์รหัสแทน'));document.head.append(script);});
-      if(generation!==cameraGeneration)return;
-      $('rq-camera-box').hidden=false;const scanner=new Html5Qrcode('rq-camera-reader');state.scanner=scanner;let handled=false;
-      await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:240,height:120}},async code=>{if(handled||generation!==cameraGeneration)return;handled=true;$('rq-query').value=code;$('rq-lookup-type').value='barcode';await stopCamera();lookup();},()=>{});
-      if(generation!==cameraGeneration){try{await scanner.stop();scanner.clear();}catch{}}
-    } catch(error){$('rq-search-error').textContent=error.message||'เปิดกล้องไม่ได้ กรุณาอนุญาตกล้องหรือพิมพ์รหัส';await stopCamera();}
+    if(state.pending)return;
+    $('rq-camera-btn').disabled=true;$('rq-search-error').textContent='';
+    try{await barcodeCamera.start();}finally{$('rq-camera-btn').disabled=Boolean(state.pending);}
   }
   $('rq-login-form').addEventListener('submit',async e=>{e.preventDefault();const btn=e.currentTarget.querySelector('button');btn.disabled=true;$('rq-login-error').textContent='';try{if(demo||await window.LineAuth.login())await enter();}catch(error){$('rq-login').hidden=false;$('rq-work').hidden=true;$('rq-login-error').textContent=error.message;}finally{btn.disabled=false;}});
-  $('rq-search-form').addEventListener('submit',e=>{e.preventDefault();lookup();});
+  $('rq-search-form').addEventListener('submit',async e=>{e.preventDefault();await stopCamera();lookup();});
   $('rq-item-form').addEventListener('submit',e=>{e.preventDefault();if(!state.lookup||state.pending)return;const p=state.lookup,qty=Number($('rq-qty').value);if(state.cart.some(x=>x.productCode===p.productCode)){$('rq-search-error').textContent='สินค้านี้อยู่ในใบเบิกแล้ว นำรายการเดิมออกก่อนปรับจำนวน';return;}if(state.cart.length>=40){$('rq-search-error').textContent='ครบ 40 รายการแล้ว กรุณาบันทึกใบนี้ก่อน';return;}if(qty<=0||qty>p.stock){$('rq-search-error').textContent='จำนวนเบิกต้องมากกว่า 0 และไม่เกินยอดคงเหลือ';return;}state.cart.push({productCode:p.productCode,name:p.name,qty,unit:$('rq-unit').value.trim(),section:$('rq-section').value.trim(),reason:$('rq-reason').value,note:$('rq-note').value.trim(),unitConfirmed:$('rq-unit-confirm').checked});renderCart();$('rq-item-form').hidden=true;$('rq-search-empty').hidden=false;$('rq-query').value='';$('rq-query').focus();});
   $('rq-save').onclick=save;$('rq-tab-new').onclick=()=>selectView(false);$('rq-tab-history').onclick=()=>selectView(true);$('rq-history-refresh').onclick=loadHistory;$('rq-history-form').onsubmit=e=>{e.preventDefault();loadHistory();};
   $('rq-new-round').onclick=async()=>{try{await stopCamera();await startRound();state.lookup=null;$('rq-item-form').hidden=true;$('rq-search-error').textContent='โหลด ProductList ล่าสุดแล้ว ระบบจะตรวจสต๊อกทุกรายการอีกครั้งตอนบันทึก';}catch(error){$('rq-save-error').textContent=error.message;}};

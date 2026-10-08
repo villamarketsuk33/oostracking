@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const config = window.OOS_CONFIG || {};
   const demo = config.demo === true || new URLSearchParams(location.search).get('demo') === '1';
-  const state = {auth:null,filter:'ready',page:1,records:[],health:{},mode:'create',lookup:null,detail:null,requestId:null,closeRequestId:null,listGeneration:0,scanner:null,scanning:false};
+  const state = {auth:null,filter:'ready',page:1,records:[],health:{},mode:'create',lookup:null,detail:null,requestId:null,closeRequestId:null,listGeneration:0};
   const type = {'รอสินค้า':'waiting','รอเติม':'ready','ตรวจสอบข้อมูล':'review','ปิดแล้ว':'closed'};
   const storage = {get:k=>{try{return sessionStorage.getItem(k);}catch{return null;}},set:(k,v)=>{try{sessionStorage.setItem(k,v);}catch{}},remove:k=>{try{sessionStorage.removeItem(k);}catch{}}};
   const make = (tag,cls,text) => {const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
@@ -131,33 +131,15 @@
     if(closed)$('detail-product').append(make('p','','ปิดโดย '+r.closedBy+' · '+when(r.closedAt)),make('p','','คืนป้าย: '+r.labelReturned));
     $('detail-dialog').showModal();
   }
-  async function loadScanner() {
-    if(window.Html5Qrcode)return;
-    await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='vendor/html5-qrcode.min.js';s.onload=resolve;s.onerror=()=>reject(new Error('โหลดเครื่องสแกนไม่ได้ ใช้ช่องพิมพ์บาร์โค้ดหรือเครื่องสแกน USB ได้'));document.head.append(s);});
-  }
-  let cameraGeneration=0;
+  const barcodeCamera = window.BarcodeCamera.create({boxId:'camera-box',readerId:'camera-reader',
+    onDetected:async code=>{$('barcode').value=code;await lookup();},
+    onError:message=>{$('scan-error').textContent=message;}
+  });
   async function startCamera() {
-    if(state.scanning)return;
-    if(!window.isSecureContext){$('scan-error').textContent='เปิดเว็บผ่าน HTTPS เพื่อใช้กล้อง หรือพิมพ์บาร์โค้ดแทน';return;}
-    const generation=++cameraGeneration;
     $('camera-btn').disabled=true;$('scan-error').textContent='';
-    try {
-      await loadScanner();if(generation!==cameraGeneration)return;$('camera-box').hidden=false;
-      state.scanner=new Html5Qrcode('camera-reader',{formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39],verbose:false});
-      let handled=false;const scanner=state.scanner;
-      await scanner.start({facingMode:'environment'},{fps:10,qrbox:(w,h)=>({width:Math.min(w-30,300),height:Math.min(h-30,140)})},async code=>{
-        if(handled||generation!==cameraGeneration)return;handled=true;$('barcode').value=code;await stopCamera();await lookup();
-      },()=>{});
-      if(generation!==cameraGeneration){try{await scanner.stop();scanner.clear();}catch{}return;}state.scanning=true;
-    } catch(error) {$('camera-box').hidden=true;$('scan-error').textContent='เปิดกล้องไม่ได้ กรุณาอนุญาตกล้องและเปิดผ่าน Chrome/Safari หรือใช้ช่องพิมพ์บาร์โค้ด';state.scanner=null;}
-    finally {$('camera-btn').disabled=false;}
+    try{await barcodeCamera.start();}finally{$('camera-btn').disabled=false;}
   }
-  async function stopCamera() {
-    cameraGeneration++;
-    const scanner=state.scanner;state.scanner=null;state.scanning=false;
-    if(scanner){try{await scanner.stop();scanner.clear();}catch{}}
-    $('camera-box').hidden=true;
-  }
+  async function stopCamera() {await barcodeCamera.stop();}
   $('login-form').addEventListener('submit',async e=>{
     e.preventDefault();$('login-error').textContent='';busy($('login-form'),true);
     try{if(demo||await window.LineAuth.login())await enter();}catch(error){$('login-error').textContent=error.message;state.auth=null;$('app-view').hidden=true;$('login-view').hidden=false;}finally{busy($('login-form'),false);}
