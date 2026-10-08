@@ -12,14 +12,18 @@
   function toast(message,error=false) {$('toast').textContent=message;$('toast').classList.toggle('error',error);$('toast').hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').hidden=true,5500);}
   function busy(root,on) {root.dataset.busy=String(on);root.querySelectorAll('button,input').forEach(el=>el.disabled=on);}
   async function api(action,data={}) {
-    const payload={action,...data,actor:state.auth?.actor,branch:state.auth?.branch,accessKey:state.auth?.accessKey};
+    const payload={action,...data,actor:state.auth?.actor,branch:state.auth?.branch,accessKey:state.auth?.accessKey,roundToken:data.roundToken||window.ExportGate?.token};
     if(demo)return window.OOS_DEMO.request(payload);
-    if(!config.apiUrl||!/^https:\/\//.test(config.apiUrl))throw new Error('ยังไม่ได้ตั้งค่าการเชื่อมต่อ กรุณาติดต่อผู้ดูแล');
+    let endpoint;
+    try {endpoint=new URL(config.apiUrl);} catch(error) {throw new Error('กรุณาตั้งค่า apiUrl เป็น URL Apps Script Web App ที่ลงท้าย /exec');}
+    if(endpoint.protocol!=='https:'||endpoint.hostname!=='script.google.com'||!endpoint.pathname.endsWith('/exec')||endpoint.search||endpoint.hash)throw new Error('กรุณาใช้ URL Apps Script Web App ที่ลงท้าย /exec ใน config.js');
     const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),90000);
     try {
-      const response=await fetch(config.apiUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal,cache:'no-store',credentials:'omit'});
+      // A simple cross-origin POST avoids an OPTIONS preflight. Read Google's
+      // redirected JSON response; never treat an opaque/no-cors response as saved.
+      const response=await fetch(endpoint.href,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:controller.signal,redirect:'follow',credentials:'omit'});
       const result=await response.json();
-      if(result.ok!==true)throw new Error(result.error?.message || 'ระบบไม่ยืนยันผล กรุณาลองอีกครั้ง');
+      if(result.ok!==true){const error=new Error(result.error?.message || 'ระบบไม่ยืนยันผล กรุณาลองอีกครั้ง');error.code=result.error?.code;throw error;}
       if(!response.ok || !result.data)throw new Error('ระบบตอบกลับไม่ครบ กรุณาลองอีกครั้ง');
       return result.data;
     } catch(error) {
@@ -40,6 +44,7 @@
     $('branch-label').textContent='สาขา '+state.auth.branch;
     $('admin-controls').hidden=data.role!=='admin';showHealth(data.health);
     if(!demo)storage.set('oos-session',JSON.stringify(state.auth));
+    if(!demo)await window.ExportGate.resume(api)||await window.ExportGate.unlock(api);
     await load();
   }
   async function load(more=false) {
@@ -77,7 +82,18 @@
       info.append(make('h3','',r.name),sub,make('div','record-meta',r.issue || (r.status==='ปิดแล้ว' ? 'เติมโดย '+r.closedBy+' · '+when(r.closedAt) : (r.labelLocation || 'ป้ายบน top stock')+' · บันทึก '+when(r.openedAt))));main.append(boxIcon(),info);
       const stock=make('div','record-stock',r.stock===''||r.stock===null?'—':String(r.stock));stock.append(make('small','','ในชีท'));
       const action=make('div','record-action'), btn=make('button','',r.status==='ปิดแล้ว'?'ดูประวัติ ↗':'ตรวจ / เติมสินค้า ↗');btn.addEventListener('click',()=>openDetail(r));
-      action.append(make('span','badge '+(type[r.status]||''),r.status),btn);row.append(main,stock,action);root.append(row);
+      action.append(make('span','badge '+(type[r.status]||''),r.status),btn);
+      if(r.status==='รอเติม'&&Number(r.stock)>0&&!r.issue) {
+        const request=make('button','oos-requisition-btn','นำไปเบิกสินค้า →');
+        request.addEventListener('click',()=>{
+          if(demo){toast('ทดลองเบิกสินค้าได้ที่เมนูเบิกสินค้า');return;}
+          try{sessionStorage.setItem('villa-oos-to-requisition',JSON.stringify({branch:state.auth.branch,productCode:r.productCode,section:r.section,labelLocation:r.labelLocation,oosId:r.id}));}
+          catch{toast('เก็บรายการส่งต่อไม่ได้ กรุณาเปิดหน้าเบิกแล้วค้นด้วยรหัส '+r.productCode,true);return;}
+          window.ExportGate.navigate('requisition.html');
+        });
+        action.append(request);
+      }
+      row.append(main,stock,action);root.append(row);
     }
   }
   function selectFilter(filter) {
@@ -185,6 +201,7 @@
     try{const data=await api('section',payload);state.detail=data.record;previewProduct($('detail-product'),data.record);$('edit-section-details').open=false;toast('จำ Section ใหม่แล้ว');await load();}catch(error){$('section-error').textContent=error.message;}finally{busy($('detail-dialog'),false);}
   });
   $('pause-btn').addEventListener('click',async()=>{const paused=!state.health.paused;$('pause-btn').disabled=true;$('pause-error').textContent='';try{await api('pause',{paused});await load();toast(paused?'หยุดตรวจสต๊อกแล้ว เริ่มอัปเดตชีทได้':'เปิดตรวจสต๊อกแล้ว ระบบจะตรวจหลังข้อมูลนิ่ง');}catch(error){$('pause-error').textContent=error.message;}finally{$('pause-btn').disabled=false;}});
+  $('new-round-btn').addEventListener('click',async()=>{if(demo){toast('โหมดตัวอย่างไม่อัปเดตข้อมูลจริง');return;}try{await window.ExportGate.unlock(api);await load();}catch(error){toast(error.message,true);}});
   $('add-btn').addEventListener('click',()=>openScan('create'));$('refill-btn').addEventListener('click',()=>openScan('close'));
   $('camera-btn').addEventListener('click',startCamera);$('stop-camera').addEventListener('click',stopCamera);
   document.querySelectorAll('[data-filter]').forEach(el=>el.addEventListener('click',()=>selectFilter(el.dataset.filter)));

@@ -1,160 +1,51 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบเบิกสินค้า</title>
-    <script src="https://cdn.tailwindcss.com/"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .keypad-btn { background:white; border:1px solid #e5e7eb; font-size:1.5rem; font-weight:700; color:#1f2937; border-radius:.75rem; padding:1rem; box-shadow:0 1px 2px #0001; }
-        .keypad-btn:hover { background:#eef2ff; }
-        @media print { .no-print, #scan-modal, #loading-overlay { display:none!important; } body { background:white; padding:0; } .print-container { box-shadow:none; max-width:100%; padding:0; } }
-    </style>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#172d32"><meta name="referrer" content="no-referrer">
+  <title>OOS — ติดตามสินค้าและป้าย</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js" defer></script><script src="demo.js" defer></script><script src="export-gate.js" defer></script><script src="app.js" defer></script>
 </head>
-<body class="p-4 md:p-8">
-<div class="max-w-7xl mx-auto bg-white shadow-xl rounded-2xl p-6 md:p-10 print-container">
-        <header class="mb-6 flex justify-between items-end border-b pb-4">
-            <div>
-                <h1 class="text-3xl font-extrabold text-gray-800 mb-2">ระบบเบิกสินค้า</h1>
-                <p class="text-gray-500">สาขาสุขุมวิท 33 · สแกนสินค้า แล้วระบุจำนวนเบิก</p>
-                <a href="./warehouse.html" class="text-indigo-700 text-sm no-print">เปิดหน้ารายการคลังสินค้า →</a>
-            </div>
-            <div class="flex gap-4">
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">วันที่เบิก</label>
-                    <input type="date" id="req-date" class="px-3 py-2 border rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">เลขที่ใบเบิก (อัตโนมัติ)</label>
-                    <input type="text" id="req-docno" readonly class="px-3 py-2 border rounded-lg bg-gray-50 font-mono text-sm">
-                </div>
-            </div>
-        </header>
-
-        <!-- อัพโหลดไฟล์ฐานข้อมูล (ยอดคงเหลือ) -->
-        <div id="upload-section" class="mb-8 no-print">
-            <div class="bg-indigo-50 p-6 border-2 border-dashed border-indigo-200 rounded-xl">
-                <label for="file-upload" class="block text-lg font-semibold text-gray-700 mb-2">
-                    1. อัปโหลดไฟล์รายการสินค้าล่าสุด (เพื่ออ้างอิงยอดคงเหลือ)
-                </label>
-                <p class="text-sm text-gray-600 mb-3">ยอดคงเหลือเป็นข้อมูล ณ เวลาที่ Export ไฟล์ กรุณาอัปโหลดใหม่ทุกครั้งที่เปิดใช้งาน</p>
-                <input type="file" id="file-upload" accept=".xlsx,.xls,.csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-indigo-600 file:text-white cursor-pointer" />
-            </div>
-        </div>
-        
-        <section id="column-section" class="hidden mb-6 bg-blue-50 border rounded-xl p-4 no-print">
-            <p class="font-bold mb-3">ตรวจคอลัมน์ให้ถูกต้องก่อนเริ่มเบิก โดยเฉพาะยอดคงเหลือ</p>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <label>บาร์โค้ด<select id="col-barcode" class="block w-full border rounded p-2"></select></label>
-                <label>รหัสสินค้า<select id="col-prcode" class="block w-full border rounded p-2"></select></label>
-                <label>ชื่อสินค้า<select id="col-name" class="block w-full border rounded p-2"></select></label>
-                <label>ยอดคงเหลือ<select id="col-balance" class="block w-full border rounded p-2"></select></label>
-            </div>
-            <button id="apply-columns-btn" class="mt-4 px-4 py-2 bg-blue-700 text-white rounded-lg">ยืนยันคอลัมน์และเริ่มเบิก</button>
-        </section>
-        <p id="inventory-status" role="status" class="mb-4 text-sm text-gray-600 no-print"></p>
-        <p id="save-status" role="status" class="mb-4 font-semibold text-indigo-800 no-print"></p>
-
-        <!-- สแกนบาร์โค้ด -->
-        <div id="check-section" class="no-print mb-8 opacity-50 pointer-events-none transition duration-300">
-            <label class="block text-lg font-semibold text-gray-700 mb-2">2. สแกนบาร์โค้ดเพื่อเบิก (ค้นหาตรงทุกหลัก)</label>
-            <div class="relative">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <i data-lucide="scan-barcode" class="h-6 w-6 text-gray-400"></i>
-                </div>
-                <input type="text" id="barcode-input" placeholder="สแกนบาร์โค้ด..." class="pl-10 w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-xl font-mono focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500" autocomplete="off" />
-            </div>
-        </div>
-
-        <!-- รายการที่เบิกแล้ว -->
-        <section class="mt-8">
-            <div class="flex justify-between items-center mb-4">
-                <h2 id="list-title" class="text-xl font-bold text-gray-800">รายการเบิก (เตรียมบันทึก)</h2>
-                <div class="flex flex-wrap gap-2 no-print">
-                <button id="new-req-btn" class="hidden px-4 py-2 border rounded-lg">ใบเบิกใหม่</button>
-                <button id="print-req-btn" class="hidden px-4 py-2 bg-gray-800 text-white rounded-lg">พิมพ์ใบเบิก</button>
-                <button id="save-req-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition duration-150 flex items-center gap-2 hidden">
-                    <i data-lucide="save" class="w-5 h-5"></i> บันทึกการเบิกสินค้า
-                </button>
-                </div>
-            </div>
-            <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500">บาร์โค้ด/รหัส</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500">ชื่อสินค้า</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500">คงเหลือ</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-indigo-600 font-bold">ยอดเบิก</th>
-                            <th class="px-4 py-3 no-print">แก้ไข</th>
-                        </tr>
-                    </thead>
-                    <tbody id="req-table-body" class="divide-y divide-gray-200 text-sm">
-                        <tr><td colspan="5" class="px-6 py-8 text-center text-gray-400">ยังไม่มีรายการ</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Modal ระบุจำนวนพร้อม Keypad -->
-        <div id="scan-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-                <div class="mb-4">
-                    <h3 id="modal-item-name" class="text-xl font-bold text-gray-900 leading-tight"></h3>
-                    <div class="flex gap-4 mt-2 text-sm">
-                        <span class="text-gray-500">บาร์โค้ด: <span id="modal-item-barcode" class="font-mono text-gray-800"></span></span>
-                        <span class="text-gray-500">รหัส: <span id="modal-item-prcode" class="font-mono text-gray-800"></span></span>
-                    </div>
-                    <div class="mt-3 bg-blue-50 p-3 rounded-lg border border-blue-100 flex justify-between items-center">
-                        <span class="text-blue-800 font-semibold">ยอดคงเหลือในระบบ:</span>
-                        <span id="modal-item-balance" class="text-2xl font-bold text-blue-600">0</span>
-                    </div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">ระบุจำนวนที่ต้องการเบิก</label>
-                    <input type="text" id="modal-qty-input" readonly class="w-full text-center px-4 py-3 border-2 border-indigo-200 rounded-xl text-4xl font-bold text-indigo-700 bg-gray-50" value="" placeholder="0">
-                </div>
-
-                <!-- Keypad -->
-                <div class="grid grid-cols-3 gap-2 mb-4">
-                    <button class="keypad-btn" onclick="typeNum('1')">1</button>
-                    <button class="keypad-btn" onclick="typeNum('2')">2</button>
-                    <button class="keypad-btn" onclick="typeNum('3')">3</button>
-                    <button class="keypad-btn" onclick="typeNum('4')">4</button>
-                    <button class="keypad-btn" onclick="typeNum('5')">5</button>
-                    <button class="keypad-btn" onclick="typeNum('6')">6</button>
-                    <button class="keypad-btn" onclick="typeNum('7')">7</button>
-                    <button class="keypad-btn" onclick="typeNum('8')">8</button>
-                    <button class="keypad-btn" onclick="typeNum('9')">9</button>
-                    <button class="bg-red-50 text-red-600 text-lg font-bold rounded-xl shadow-sm hover:bg-red-100" onclick="clearNum()">C</button>
-                    <button class="keypad-btn" onclick="typeNum('0')">0</button>
-                    <button class="bg-gray-100 text-gray-600 text-lg font-bold rounded-xl shadow-sm hover:bg-gray-200 flex justify-center items-center" onclick="delNum()"><i data-lucide="delete"></i></button>
-                </div>
-
-                <div class="flex gap-3">
-                    <button id="modal-cancel-btn" class="w-1/3 py-3 border border-gray-300 rounded-xl font-semibold text-gray-600 hover:bg-gray-50">ยกเลิก</button>
-                    <button id="modal-confirm-btn" class="w-2/3 py-3 bg-indigo-600 text-white rounded-xl font-bold text-lg shadow-md hover:bg-indigo-700 flex justify-center items-center gap-2">
-                        <i data-lucide="check-circle-2"></i> บันทึกจำนวน
-                    </button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Loading Overlay -->
-        <div id="loading-overlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm hidden flex-col items-center justify-center z-[100]">
-            <div class="animate-spin rounded-full h-12 w-12 border-4 border-indigo-200 border-t-indigo-600 mb-4"></div>
-            <p class="text-indigo-800 font-bold text-lg">กำลังประมวลผล...</p>
-        </div>
+<body>
+  <div class="demo-banner" id="demo-banner" hidden>โหมดตัวอย่าง · ข้อมูลจำลอง ไม่บันทึกลงชีท</div>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="หน้าแรก OOS"><span class="brand-mark">oos<span>↗</span></span><span class="brand-caption">SHELF TRACKER</span></a>
+    <div class="topbar-right"><a class="text-btn" href="index.html" aria-current="page">1. ป้าย OOS</a><a class="text-btn" href="requisition.html">2. เบิกสินค้า</a><button class="text-btn" id="new-round-btn">อัปเดต Export</button><span id="user-label" class="user-label">ติดตามสินค้าและป้าย</span><button id="account-btn" class="icon-btn" title="ข้อมูลผู้ใช้งาน" aria-label="ข้อมูลผู้ใช้งาน">☰</button></div>
+  </header>
+  <section id="login-view" class="login-wrap">
+    <div class="login-intro"><span class="eyebrow">งานหน้าร้าน เป็นระบบขึ้น</span><h1>ติดตามของขาด<br>เติมกลับเข้าชั้น</h1><p>สแกนป้าย เก็บตำแหน่ง และเห็นทันที<br>ว่ารายการไหนมีสต๊อกพร้อมให้ตรวจเติม</p><div class="shelf-art" aria-hidden="true"><span></span><span></span><span class="missing">OOS</span><span></span><i></i></div></div>
+    <form id="login-form" class="panel login-form"><span class="eyebrow">เริ่มงานวันนี้</span><h2>เข้าสู่ระบบ</h2>
+      <p id="setup-notice" class="notice" hidden>ยังไม่ได้เชื่อมต่อระบบ ผู้ดูแลต้องติดตั้งตามคู่มือก่อนใช้งานจริง</p>
+      <label>ชื่อพนักงาน<input id="actor" autocomplete="name" required maxlength="80" placeholder="ชื่อที่ใช้บันทึกงาน"></label>
+      <label>รหัสสาขา<input id="branch" inputmode="numeric" required maxlength="30" value="1000"></label>
+      <label>รหัสเข้าใช้งาน<input id="access-key" type="password" autocomplete="current-password" required placeholder="รับรหัสจากหัวหน้างาน"></label>
+      <p class="form-error" id="login-error" role="alert"></p><button class="btn primary full" id="login-submit">เข้าสู่ระบบ <span>↗</span></button>
+      <a class="demo-link" href="?demo=1">ดูตัวอย่างหน้าจอ</a>
+    </form>
+  </section>
+  <main id="app-view" class="app-layout" hidden>
+    <aside class="sidebar"><div class="workspace-label">งานหน้าร้าน</div><button class="side-link active" data-filter="ready"><span>▦</span> รายการ OOS</button><button class="side-link" data-filter="closed"><span>◷</span> ประวัติการเติม</button><div class="sidebar-guide"><span class="guide-dot"></span><h3>ป้ายอยู่ที่ไหน?</h3><p>เก็บบน top stock<br>ให้ตรงกับ Section<br>ที่บันทึกไว้ในระบบ</p></div><div class="sidebar-footer">OOS TRACKER <span>v2.0</span></div></aside>
+    <div class="workspace">
+      <div class="page-heading"><div><span class="eyebrow" id="branch-label">สาขา 1000</span><h1>จัดการสินค้า OOS</h1><p>จากป้ายที่เก็บไว้ กลับไปเป็นสินค้าบนชั้น</p></div><button class="btn secondary" id="refresh-btn"><span>↻</span> อัปเดตรายการ</button></div>
+      <div id="health" class="health" role="status"></div>
+      <section class="stats" aria-label="สรุปสถานะ"><button class="stat stat-ready" data-filter="ready"><span class="stat-label"><i></i> พบสต๊อก รอเติม</span><strong id="count-ready">—</strong><small>ตรวจของ แล้วเติมเข้าชั้น <span>↗</span></small></button><button class="stat" data-filter="waiting"><span class="stat-label"><i class="amber"></i> ยังรอสินค้า</span><strong id="count-waiting">—</strong><small>คงเหลือในชีทเป็น 0</small></button><button class="stat" data-filter="review"><span class="stat-label"><i class="red"></i> ตรวจสอบข้อมูล</span><strong id="count-review">—</strong><small>ยอดว่าง หรือข้อมูลไม่ตรงกัน</small></button></section>
+      <section class="quick-actions"><div class="quick-caption"><span class="scan-symbol" aria-hidden="true">▥</span><div><h2>เจอของขาด หรือเติมเสร็จแล้ว?</h2><p>สแกนป้ายเพื่อบันทึกงานได้เลย</p></div></div><div class="action-buttons"><button class="btn secondary" id="refill-btn">✓ สแกนเติมสินค้าแล้ว</button><button class="btn primary" id="add-btn">+ สแกนป้าย OOS</button></div></section>
+      <section class="records-panel panel"><div class="list-heading"><h2>รายการสินค้า <span id="total-label"></span></h2><span id="list-updated" class="small muted"></span></div><div class="tabs" role="group" aria-label="กรองสถานะ"><button data-filter="ready" class="selected">รอเติม</button><button data-filter="waiting">รอสินค้า</button><button data-filter="review">ตรวจสอบ</button><button data-filter="all">ทั้งหมดที่ค้าง</button><button data-filter="closed">ปิดแล้ว</button></div>
+        <div class="search-row"><label class="search-label"><span aria-hidden="true">⌕</span><input id="search" aria-label="ค้นหาสินค้า" placeholder="ค้นหาชื่อสินค้า บาร์โค้ด หรือรหัส"></label><input id="section-filter" aria-label="กรอง Section" placeholder="ทุก Section" maxlength="40"></div>
+        <div class="table-labels"><span>สินค้า / ตำแหน่งป้าย</span><span>คงเหลือ</span><span>สถานะ / จัดการ</span></div><div id="records" aria-live="polite"></div><div class="list-footer"><span id="list-status" class="small muted"></span><button id="load-more" class="text-btn" hidden>ดูเพิ่มอีก 50 รายการ ↓</button></div>
+      </section>
+      <div class="bottom-note"><span>ยอดสต๊อกอ้างอิง Export ล่าสุดบน Google Drive</span><a href="warehouse.html">ประวัติใบเบิกระบบเดิม</a></div>
     </div>
-
-    <script src="./config.js"></script>
-    <script src="./api.js"></script>
-    <script src="./inventory.js"></script>
-    <script src="./index.js"></script>
-</body>
-</html>
+  </main>
+  <dialog id="scan-dialog"><div class="dialog-heading"><div><span class="eyebrow">สแกนป้ายสินค้า</span><h2 id="scan-title">บันทึกสินค้า OOS</h2></div><button class="icon-btn" data-close="scan-dialog" aria-label="ปิด">×</button></div>
+    <form id="lookup-form"><label>บาร์โค้ด<div class="input-action"><input id="barcode" inputmode="numeric" autocomplete="off" required maxlength="40" placeholder="สแกนหรือพิมพ์บาร์โค้ด"><button class="btn primary" id="lookup-btn">ค้นหา</button></div></label></form>
+    <button class="btn camera-btn full" id="camera-btn">▥ เปิดกล้องสแกน</button><div id="camera-box" hidden><div id="camera-reader"></div><button class="text-btn" id="stop-camera">หยุดกล้อง</button></div>
+    <p id="scan-error" class="form-error" role="alert"></p>
+    <form id="create-form" hidden><div id="lookup-product" class="product-preview"></div><div class="two-fields"><label>Section<input id="new-section" required maxlength="40" placeholder="เช่น 12"></label><label>ตำแหน่งเก็บป้าย<input id="new-location" maxlength="120" placeholder="เช่น top stock ช่องซ้าย"></label></div><p id="section-hint" class="small muted"></p><label>หมายเหตุ (ถ้ามี)<input id="new-note" maxlength="500"></label><label class="check-row"><input type="checkbox" id="confirm-zero" required><span>ตรวจสต๊อกแล้วเป็น 0 และนำป้ายออกแล้ว</span></label><button class="btn primary full" id="save-oos">บันทึก OOS และจำ Section</button></form>
+    <div id="existing-record" hidden></div><p id="demo-scan-hint" class="small muted" hidden>ลองพิมพ์ DEMO-NEW เพื่อเพิ่มสินค้า หรือ DEMO-001 เพื่อเติมรายการตัวอย่าง</p>
+  </dialog>
+  <dialog id="detail-dialog"><div class="dialog-heading"><div><span class="eyebrow">จัดการรายการ</span><h2 id="detail-title">เติมสินค้าและคืนป้าย</h2></div><button class="icon-btn" data-close="detail-dialog" aria-label="ปิด">×</button></div><div id="detail-product" class="product-preview"></div><form id="close-form"><label class="check-row"><input type="checkbox" id="confirm-filled" required><span>เติมสินค้าบนชั้นเรียบร้อยแล้ว</span></label><label class="check-row"><input type="checkbox" id="confirm-label" required><span>นำป้ายกลับติดที่ชั้น และตรวจราคาปัจจุบันแล้ว</span></label><p id="close-error" class="form-error" role="alert"></p><button class="btn primary full" id="close-record">ยืนยันเติมสินค้าและปิดรายการ</button></form><details id="edit-section-details"><summary>แก้ไข Section หรือตำแหน่งเก็บป้าย</summary><form id="section-form"><label>Section<input id="edit-section" required maxlength="40"></label><label>ตำแหน่งเก็บป้าย<input id="edit-location" maxlength="120"></label><p id="section-error" class="form-error" role="alert"></p><button class="btn secondary full">บันทึกตำแหน่งใหม่</button></form></details></dialog>
+  <dialog id="account-dialog"><div class="dialog-heading"><h2>ข้อมูลผู้ใช้งาน</h2><button class="icon-btn" data-close="account-dialog" aria-label="ปิด">×</button></div><p id="account-info"></p><div id="admin-controls" hidden><h3>อัปเดตชีทต้นทาง</h3><p class="muted small">หยุดตรวจสต๊อกก่อนวางข้อมูลหลายชุด แล้วเปิดอีกครั้งเมื่อข้อมูลครบ</p><button class="btn secondary full" id="pause-btn">หยุดตรวจสต๊อกชั่วคราว</button><p id="pause-error" class="form-error" role="alert"></p></div><button class="text-btn" id="logout-btn">ออกจากระบบ / เปลี่ยนสาขา</button></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body></html>
