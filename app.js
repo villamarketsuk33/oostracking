@@ -12,24 +12,8 @@
   function toast(message,error=false) {$('toast').textContent=message;$('toast').classList.toggle('error',error);$('toast').hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').hidden=true,5500);}
   function busy(root,on) {root.dataset.busy=String(on);root.querySelectorAll('button,input').forEach(el=>el.disabled=on);}
   async function api(action,data={}) {
-    const payload={action,...data,actor:state.auth?.actor,branch:state.auth?.branch,accessKey:state.auth?.accessKey,roundToken:data.roundToken||window.ExportGate?.token};
-    if(demo)return window.OOS_DEMO.request(payload);
-    let endpoint;
-    try {endpoint=new URL(config.apiUrl);} catch(error) {throw new Error('กรุณาตั้งค่า apiUrl เป็น URL Apps Script Web App ที่ลงท้าย /exec');}
-    if(endpoint.protocol!=='https:'||endpoint.hostname!=='script.google.com'||!endpoint.pathname.endsWith('/exec')||endpoint.search||endpoint.hash)throw new Error('กรุณาใช้ URL Apps Script Web App ที่ลงท้าย /exec ใน config.js');
-    const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),90000);
-    try {
-      // A simple cross-origin POST avoids an OPTIONS preflight. Read Google's
-      // redirected JSON response; never treat an opaque/no-cors response as saved.
-      const response=await fetch(endpoint.href,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:controller.signal,redirect:'follow',credentials:'omit'});
-      const result=await response.json();
-      if(result.ok!==true){const error=new Error(result.error?.message || 'ระบบไม่ยืนยันผล กรุณาลองอีกครั้ง');error.code=result.error?.code;throw error;}
-      if(!response.ok || !result.data)throw new Error('ระบบตอบกลับไม่ครบ กรุณาลองอีกครั้ง');
-      return result.data;
-    } catch(error) {
-      if(error.name==='AbortError'||error instanceof TypeError||error instanceof SyntaxError)throw new Error('ยังยืนยันผลไม่ได้ กรุณาตรวจอินเทอร์เน็ต แล้วลองรายการเดิมอีกครั้ง ระบบจะตรวจคำขอซ้ำก่อนบันทึก');
-      throw error;
-    } finally {clearTimeout(timer);}
+    if(demo)return window.OOS_DEMO.request({action,...data,actor:state.auth?.actor,branch:state.auth?.branch});
+    return window.LineAuth.request(action,data);
   }
   function showHealth(h) {
     state.health=h;
@@ -38,12 +22,12 @@
     $('pause-btn').textContent=h.paused?'อัปเดตข้อมูลครบแล้ว เริ่มตรวจสต๊อก':'หยุดตรวจสต๊อกชั่วคราว';
   }
   async function enter() {
-    const data=await api('bootstrap');state.auth.role=data.role;
+    const data=await api('bootstrap');state.auth=demo?{...state.auth,role:data.role}:data.employee;
+    if(!state.auth?.actor)throw new Error('ระบบตอบข้อมูลพนักงานไม่ครบ');
     $('login-view').hidden=true;$('app-view').hidden=false;
     $('user-label').textContent=state.auth.actor+' · '+state.auth.branch;
     $('branch-label').textContent='สาขา '+state.auth.branch;
     $('admin-controls').hidden=data.role!=='admin';showHealth(data.health);
-    if(!demo)storage.set('oos-session',JSON.stringify(state.auth));
     if(!demo)await window.ExportGate.resume(api)||await window.ExportGate.unlock(api);
     await load();
   }
@@ -176,8 +160,7 @@
   }
   $('login-form').addEventListener('submit',async e=>{
     e.preventDefault();$('login-error').textContent='';busy($('login-form'),true);
-    state.auth={actor:$('actor').value.trim(),branch:$('branch').value.trim(),accessKey:$('access-key').value};
-    try{await enter();}catch(error){$('login-error').textContent=error.message;state.auth=null;}finally{busy($('login-form'),false);}
+    try{if(demo||await window.LineAuth.login())await enter();}catch(error){$('login-error').textContent=error.message;state.auth=null;$('app-view').hidden=true;$('login-view').hidden=false;}finally{busy($('login-form'),false);}
   });
   $('lookup-form').addEventListener('submit',e=>{e.preventDefault();lookup();});
   $('create-form').addEventListener('submit',async e=>{
@@ -205,15 +188,16 @@
   $('add-btn').addEventListener('click',()=>openScan('create'));$('refill-btn').addEventListener('click',()=>openScan('close'));
   $('camera-btn').addEventListener('click',startCamera);$('stop-camera').addEventListener('click',stopCamera);
   document.querySelectorAll('[data-filter]').forEach(el=>el.addEventListener('click',()=>selectFilter(el.dataset.filter)));
-  $('refresh-btn').addEventListener('click',()=>load());$('load-more').addEventListener('click',()=>load(true));
+  $('refresh-btn').addEventListener('click',async()=>{try{if(!demo)await window.ExportGate.unlock(api);await load();}catch(error){toast(error.message,true);}});$('load-more').addEventListener('click',()=>load(true));
   let searchTimer;['search','section-filter'].forEach(id=>$(id).addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>load(),350);}));
   document.querySelectorAll('[data-close]').forEach(el=>el.addEventListener('click',()=>{if($(el.dataset.close).dataset.busy!=='true')$(el.dataset.close).close();}));
   document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('cancel',e=>{if(dialog.dataset.busy==='true')e.preventDefault();}));
   $('scan-dialog').addEventListener('close',stopCamera);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera();});
   $('account-btn').addEventListener('click',()=>{if(!state.auth)return;$('account-info').textContent=state.auth.actor+' · สาขา '+state.auth.branch;$('account-dialog').showModal();});
-  $('logout-btn').addEventListener('click',()=>{storage.remove('oos-session');location.href=location.pathname;});
+  $('logout-btn').addEventListener('click',()=>{if(demo){location.href=location.pathname;return;}window.LineAuth.logout();});
   $('demo-banner').hidden=!demo;$('demo-scan-hint').hidden=!demo;
-  $('branch').value=config.defaultBranch||'1000';$('setup-notice').hidden=!!config.apiUrl||demo;
+  $('setup-notice').hidden=!!(config.apiUrl&&config.liffId)||demo;
+  window.ExportGate.onChange(s=>{$('source-detail').textContent='ProductList · ไฟล์แก้ไขล่าสุด '+when(s.sourceModifiedAt);});
   if(demo){state.auth={actor:'พนักงานตัวอย่าง',branch:'1000',accessKey:'demo',role:'admin'};enter().catch(e=>toast(e.message,true));}
-  else{try{const saved=storage.get('oos-session');if(saved){state.auth=JSON.parse(saved);enter().catch(()=>{storage.remove('oos-session');state.auth=null;$('app-view').hidden=true;$('login-view').hidden=false;});}}catch{storage.remove('oos-session');}}
+  else{storage.remove('oos-session');window.LineAuth.ready().then(logged=>{if(logged)return enter();}).catch(error=>{state.auth=null;$('app-view').hidden=true;$('login-view').hidden=false;$('login-error').textContent=error.message;});}
 })();

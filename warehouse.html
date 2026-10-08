@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบคลังสินค้า - ตรวจสอบใบเบิก</title>
     <script src="https://cdn.tailwindcss.com/"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        @font-face { font-family: Thai; src: url('fonts/NotoSansThai.ttf') format('truetype'); font-weight: 100 900; font-display: swap; }
+        body { font-family: Thai, Tahoma, sans-serif; background-color: #f8fafc; }
         @media print {
             .no-print { display: none !important; }
             body { background-color: white; }
@@ -26,6 +26,8 @@
                 <a href="./requisition.html" class="text-indigo-700 text-sm no-print">← เปิดหน้าเบิกสินค้า</a>
             </div>
             <div class="flex flex-wrap gap-2 no-print">
+                <button id="line-login" class="bg-green-700 text-white px-4 py-2 rounded-lg">เข้าสู่ระบบด้วย LINE</button>
+                <button id="line-logout" hidden class="text-gray-600">ออกจากระบบ</button>
                 <input type="date" id="filter-date" class="px-4 py-2 border border-gray-300 rounded-lg">
                 <button id="refresh-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> ดึงข้อมูล</button>
                 <button id="print-btn" disabled class="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 flex items-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> พิมพ์ใบเบิก</button>
@@ -53,6 +55,8 @@
     </div>
 
     <script src="./config.js"></script>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="./line-auth.js"></script>
     <script src="./api.js"></script>
     <script src="./warehouse.js"></script>
 </body>

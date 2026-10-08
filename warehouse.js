@@ -27,7 +27,8 @@
     byId('filter-summary').textContent = '';
     message('กำลังดึงข้อมูล...');
     try {
-      const data = await api.get({ action: 'listRequisitions', date });
+      const result = await window.LineAuth.request('legacy.listRequisitions', {date});
+      const data = result.records;
       if (!Array.isArray(data)) throw new Error('รูปแบบข้อมูลใบเบิกไม่ถูกต้อง');
       const filtered = data.filter(row => row.Date === date).sort((a, b) => a.DocNo.localeCompare(b.DocNo));
       if (!filtered.length) message('ไม่พบรายการเบิกในวันที่ระบุ');
@@ -63,4 +64,10 @@
     message('เปลี่ยนวันที่แล้ว กรุณากดดึงข้อมูล');
   });
   byId('print-btn').addEventListener('click', () => window.print());
+  byId('line-login').addEventListener('click',async()=>{
+    try{if(await window.LineAuth.login()){byId('line-login').hidden=true;byId('line-logout').hidden=false;await fetchData();}}
+    catch(error){message(error.message,true);}
+  });
+  byId('line-logout').addEventListener('click',()=>window.LineAuth.logout());
+  window.LineAuth.ready().then(logged=>{if(logged){byId('line-login').hidden=true;byId('line-logout').hidden=false;return fetchData();}}).catch(error=>message(error.message,true));
 })();

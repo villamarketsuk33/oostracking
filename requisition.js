@@ -7,23 +7,10 @@
   const time=v=>v?new Intl.DateTimeFormat('th-TH',{dateStyle:'short',timeStyle:'short',timeZone:'Asia/Bangkok'}).format(new Date(v)):'—';
   const count=v=>Number(v).toLocaleString('th-TH',{maximumFractionDigits:3});
   const storage={get:k=>{try{return JSON.parse(sessionStorage.getItem(k)||'null');}catch{return null;}},put:(k,v)=>{try{sessionStorage.setItem(k,JSON.stringify(v));}catch{}},remove:k=>{try{sessionStorage.removeItem(k);}catch{}}};
-  const pendingKey=()=>`rq-pending:${state.auth.branch}:${state.auth.actor}`;
+  const pendingKey=()=>`rq-pending:${state.auth.branch}:${state.auth.lineUserId||state.auth.actor}`;
   async function api(action,data={}) {
-    const payload={...data,action,actor:state.auth.actor,branch:state.auth.branch,accessKey:state.auth.accessKey,roundToken:data.roundToken||window.ExportGate.token};
-    if(demo)return window.RequisitionDemo.request(payload);
-    let endpoint;try{endpoint=new URL(config.apiUrl);}catch{throw new Error('ยังไม่ได้ตั้งค่า URL Apps Script /exec ใน web/config.js');}
-    if(endpoint.protocol!=='https:'||endpoint.hostname!=='script.google.com'||!endpoint.pathname.endsWith('/exec')||endpoint.search||endpoint.hash)throw new Error('URL ระบบไม่ถูกต้อง กรุณาตั้งค่า Apps Script Web App /exec');
-    const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),180000);
-    try {
-      const response=await fetch(endpoint.href,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),credentials:'omit',redirect:'follow',signal:controller.signal});
-      const result=await response.json();
-      if(result.ok!==true){const error=new Error(result.error?.message||'ระบบไม่ยืนยันผล');error.code=result.error?.code;throw error;}
-      if(!response.ok||!result.data)throw new Error('ระบบตอบกลับไม่ครบ กรุณาตรวจผลก่อนทำรายการใหม่');
-      return result.data;
-    } catch(error) {
-      if(!error.code){error.uncertain=true;error.message='ยังยืนยันผลไม่ได้ กรุณาตรวจการเชื่อมต่อแล้วลองคำขอเดิมอีกครั้ง ระบบจะไม่บันทึกซ้ำ';}
-      throw error;
-    } finally {clearTimeout(timer);}
+    if(demo)return window.RequisitionDemo.request({...data,action,actor:state.auth.actor,branch:state.auth.branch});
+    return window.LineAuth.request(action,data);
   }
   function lock(on) {
     state.busy=on;
@@ -34,8 +21,8 @@
   }
   function showSnapshot(s) {
     state.round=s;
-    $('rq-source-time').textContent=demo?'โหมดตัวอย่าง · ข้อมูลจำลอง':'สต๊อกต้นทางถึง '+time(s.dataAsOf);
-    $('rq-source-detail').textContent='ไฟล์อัปเดต '+time(s.sourceModifiedAt)+' · ใช้รอบนี้ได้ถึง '+time(s.expiresAt)+' · รีโหลดหรือเริ่มรอบใหม่ ต้องอัปเดต Export อีกครั้ง';
+    $('rq-source-time').textContent=demo?'โหมดตัวอย่าง · ข้อมูลจำลอง':'ProductList · ไฟล์แก้ไขล่าสุด '+time(s.sourceModifiedAt);
+    $('rq-source-detail').textContent='อ่านจาก Google Sheets อัตโนมัติ · ใช้ข้อมูลชุดนี้ได้ถึง '+time(s.expiresAt)+' · เวลาไฟล์แก้ไขอาจต่างจากเวลา Export สต๊อก';
   }
   async function startRound(resume=false) {
     if(demo){showSnapshot(window.RequisitionDemo.snapshot);return;}
@@ -43,8 +30,8 @@
     showSnapshot(transferred||await window.ExportGate.unlock(api));
   }
   async function enter() {
-    const data=await api('bootstrap');state.auth.role=data.role;
-    if(!demo)storage.put('oos-session',state.auth);
+    const data=await api('bootstrap');state.auth=demo?{...state.auth,role:data.role}:data.employee;
+    if(!state.auth?.actor)throw new Error('ระบบตอบข้อมูลพนักงานไม่ครบ');
     $('rq-login').hidden=true;$('rq-work').hidden=false;$('rq-logout').hidden=false;
     $('rq-user').textContent='สาขา '+state.auth.branch+' · '+state.auth.actor;
     const saved=demo?null:storage.get(pendingKey());
@@ -74,7 +61,7 @@
     try {
       if($('rq-lookup-type').value==='name') {
         const data=await api('req.search',{query:$('rq-query').value.trim()}), root=$('rq-name-results');
-        if(!data.products.length)root.append(el('p','ไม่พบชื่อสินค้านี้ใน Export'));
+        if(!data.products.length)root.append(el('p','ไม่พบชื่อสินค้านี้ใน ProductList'));
         for(const p of data.products) {
           const button=el('button',p.name,'btn secondary');button.type='button';
           button.append(el('small','รหัส '+p.productCode+' · บาร์โค้ด '+p.barcode));
@@ -160,7 +147,7 @@
   function showDocument(d) {
     state.document=d;$('rq-document-title').textContent=d.id;$('rq-document-error').textContent='';
     const root=$('rq-document-body');root.replaceChildren();const meta=el('p','สาขา '+d.branch+' '+d.branchName+' · ผู้เบิก '+d.actor+'\nวันที่ '+time(d.createdAt),'rq-doc-meta');meta.style.whiteSpace='pre-line';meta.append(badge(d.status));root.append(meta);
-    root.append(el('p','สต๊อกต้นทางถึง '+time(d.dataAsOf)+' · ไฟล์อัปเดต '+time(d.sourceModifiedAt),'small muted'));
+    root.append(el('p','ProductList แก้ไขล่าสุด '+time(d.sourceModifiedAt)+' · โหลดข้อมูล '+time(d.verifiedAt),'small muted'));
     const wrap=el('div',undefined,'rq-table-wrap');wrap.append(dataTable(d));root.append(wrap);
     if(d.closeNote)root.append(el('p','หมายเหตุปิดงาน: '+d.closeNote,'small muted'));
     const open=d.status==='รอจัดสินค้า';$('rq-finish-open').hidden=!open;$('rq-cancel-open').hidden=!open;
@@ -171,7 +158,7 @@
     if(demo)root.append(el('p','ตัวอย่าง — ไม่ใช่ใบเบิกจริง','print-demo'));
     root.append(el('p','เลขที่ '+d.id+' · '+d.status,'print-status'));
     const meta=el('div',undefined,'print-meta');['สาขา '+d.branch+' '+d.branchName,'วันที่ '+time(d.createdAt),'ผู้เบิก '+d.actor,'จำนวน '+d.items.length+' รายการ'].forEach(t=>meta.append(el('div',t)));root.append(meta);
-    root.append(el('p','ข้อมูลสต๊อกถึง '+time(d.dataAsOf)+' | ไฟล์อัปเดต '+time(d.sourceModifiedAt)+' | ยืนยัน '+time(d.verifiedAt),'print-note'));
+    root.append(el('p','ProductList แก้ไขล่าสุด '+time(d.sourceModifiedAt)+' | โหลดข้อมูล '+time(d.verifiedAt),'print-note'));
     root.append(dataTable(d,true));
     const footer=el('div',undefined,'print-footer');footer.append(el('p','เลขที่ใบเบิก '+d.id,'print-note'));
     footer.append(el('p','ยอดคงเหลือ Z เป็นยอดทั้งร้าน ณ เวลาบันทึกใบเบิก ไม่ใช่จำนวนในคลังโดยเฉพาะ\nตรวจรหัสสินค้าและหน่วยทุกบรรทัด · การเบิกภายในร้านไม่หักยอดสต๊อกในระบบซ้ำ','print-note'));
@@ -209,18 +196,18 @@
       if(generation!==cameraGeneration){try{await scanner.stop();scanner.clear();}catch{}}
     } catch(error){$('rq-search-error').textContent=error.message||'เปิดกล้องไม่ได้ กรุณาอนุญาตกล้องหรือพิมพ์รหัส';await stopCamera();}
   }
-  $('rq-login-form').addEventListener('submit',async e=>{e.preventDefault();const btn=e.currentTarget.querySelector('button');btn.disabled=true;$('rq-login-error').textContent='';state.auth={actor:$('rq-actor').value.trim(),branch:$('rq-branch').value.trim(),accessKey:$('rq-key').value};try{await enter();}catch(error){$('rq-login').hidden=false;$('rq-work').hidden=true;$('rq-login-error').textContent=error.message;}finally{btn.disabled=false;}});
+  $('rq-login-form').addEventListener('submit',async e=>{e.preventDefault();const btn=e.currentTarget.querySelector('button');btn.disabled=true;$('rq-login-error').textContent='';try{if(demo||await window.LineAuth.login())await enter();}catch(error){$('rq-login').hidden=false;$('rq-work').hidden=true;$('rq-login-error').textContent=error.message;}finally{btn.disabled=false;}});
   $('rq-search-form').addEventListener('submit',e=>{e.preventDefault();lookup();});
   $('rq-item-form').addEventListener('submit',e=>{e.preventDefault();if(!state.lookup||state.pending)return;const p=state.lookup,qty=Number($('rq-qty').value);if(state.cart.some(x=>x.productCode===p.productCode)){$('rq-search-error').textContent='สินค้านี้อยู่ในใบเบิกแล้ว นำรายการเดิมออกก่อนปรับจำนวน';return;}if(state.cart.length>=40){$('rq-search-error').textContent='ครบ 40 รายการแล้ว กรุณาบันทึกใบนี้ก่อน';return;}if(qty<=0||qty>p.stock){$('rq-search-error').textContent='จำนวนเบิกต้องมากกว่า 0 และไม่เกินยอดคงเหลือ';return;}state.cart.push({productCode:p.productCode,name:p.name,qty,unit:$('rq-unit').value.trim(),section:$('rq-section').value.trim(),reason:$('rq-reason').value,note:$('rq-note').value.trim(),unitConfirmed:$('rq-unit-confirm').checked});renderCart();$('rq-item-form').hidden=true;$('rq-search-empty').hidden=false;$('rq-query').value='';$('rq-query').focus();});
   $('rq-save').onclick=save;$('rq-tab-new').onclick=()=>selectView(false);$('rq-tab-history').onclick=()=>selectView(true);$('rq-history-refresh').onclick=loadHistory;$('rq-history-form').onsubmit=e=>{e.preventDefault();loadHistory();};
-  $('rq-new-round').onclick=async()=>{try{await stopCamera();await startRound();state.lookup=null;$('rq-item-form').hidden=true;$('rq-search-error').textContent='ตรวจ Export รอบใหม่แล้ว ระบบจะตรวจสต๊อกทุกรายการอีกครั้งตอนบันทึก';}catch(error){$('rq-save-error').textContent=error.message;}};
+  $('rq-new-round').onclick=async()=>{try{await stopCamera();await startRound();state.lookup=null;$('rq-item-form').hidden=true;$('rq-search-error').textContent='โหลด ProductList ล่าสุดแล้ว ระบบจะตรวจสต๊อกทุกรายการอีกครั้งตอนบันทึก';}catch(error){$('rq-save-error').textContent=error.message;}};
   $('rq-document-close').onclick=()=>$('rq-document-dialog').close();$('rq-print').onclick=print;$('rq-finish-open').onclick=()=>openFinish(false);$('rq-cancel-open').onclick=()=>openFinish(true);$('rq-finish-close').onclick=()=>$('rq-finish-dialog').close();
   $('rq-finish-form').onsubmit=async e=>{e.preventDefault();const btn=e.currentTarget.querySelector('button');btn.disabled=true;$('rq-finish-error').textContent='';try{const data=await api('req.finish',{id:state.document.id,cancel:state.cancel,note:$('rq-finish-note').value.trim(),confirmedFilled:$('rq-confirm-filled').checked,confirmedLabel:$('rq-confirm-label').checked});$('rq-finish-dialog').close();showDocument(data.document);if(!$('rq-history-view').hidden)loadHistory();}catch(error){$('rq-finish-error').textContent=error.message;}finally{btn.disabled=false;}};
   $('rq-camera-btn').onclick=startCamera;$('rq-camera-stop').onclick=stopCamera;document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera();});
-  $('rq-logout').onclick=()=>{storage.remove('oos-session');location.href=location.pathname;};
-  setInterval(()=>{if(!demo&&state.round&&Date.now()>=Date.parse(state.round.expiresAt)){$('rq-source-time').textContent='รอบข้อมูลหมดอายุ — อัปเดต Export ก่อนเบิกใบใหม่';}},30000);
+  $('rq-logout').onclick=()=>{if(demo){location.href=location.pathname;return;}window.LineAuth.logout();};
+  setInterval(()=>{if(!demo&&state.round&&Date.now()>=Date.parse(state.round.expiresAt)){$('rq-source-time').textContent='ข้อมูลหมดอายุ — กดโหลด ProductList ล่าสุดก่อนเบิกใบใหม่';}},30000);
   window.addEventListener('beforeunload',e=>{if(state.cart.length){e.preventDefault();e.returnValue='';}});
-  $('rq-demo').hidden=!demo;$('rq-demo-hint').hidden=!demo;$('rq-branch').value=config.defaultBranch||'1000';
+  $('rq-demo').hidden=!demo;$('rq-demo-hint').hidden=!demo;
   if(demo){state.auth={actor:'พนักงานตัวอย่าง',branch:'1000',accessKey:'demo'};enter().catch(error=>{$('rq-login-error').textContent=error.message;});}
-  else{const saved=storage.get('oos-session');if(saved?.actor&&saved?.branch&&saved?.accessKey){state.auth=saved;enter().catch(error=>{$('rq-login').hidden=false;$('rq-work').hidden=true;$('rq-login-error').textContent=error.message;});}}
+  else{storage.remove('oos-session');window.LineAuth.ready().then(logged=>{if(logged)return enter();}).catch(error=>{$('rq-login').hidden=false;$('rq-work').hidden=true;$('rq-login-error').textContent=error.message;});}
 })();

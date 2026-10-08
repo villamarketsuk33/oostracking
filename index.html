@@ -5,22 +5,20 @@
   <meta name="theme-color" content="#172d32"><meta name="referrer" content="no-referrer">
   <title>OOS — ติดตามสินค้าและป้าย</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="config.js" defer></script><script src="demo.js" defer></script><script src="export-gate.js" defer></script><script src="app.js" defer></script>
+  <script src="config.js" defer></script><script src="https://static.line-scdn.net/liff/edge/2/sdk.js" defer></script><script src="line-auth.js" defer></script><script src="demo.js" defer></script><script src="export-gate.js" defer></script><script src="app.js" defer></script>
 </head>
 <body>
   <div class="demo-banner" id="demo-banner" hidden>โหมดตัวอย่าง · ข้อมูลจำลอง ไม่บันทึกลงชีท</div>
   <header class="topbar">
     <a class="brand" href="./" aria-label="หน้าแรก OOS"><span class="brand-mark">oos<span>↗</span></span><span class="brand-caption">SHELF TRACKER</span></a>
-    <div class="topbar-right"><a class="text-btn" href="index.html" aria-current="page">1. ป้าย OOS</a><a class="text-btn" href="requisition.html">2. เบิกสินค้า</a><button class="text-btn" id="new-round-btn">อัปเดต Export</button><span id="user-label" class="user-label">ติดตามสินค้าและป้าย</span><button id="account-btn" class="icon-btn" title="ข้อมูลผู้ใช้งาน" aria-label="ข้อมูลผู้ใช้งาน">☰</button></div>
+    <div class="topbar-right"><a class="text-btn" href="index.html" aria-current="page">1. ป้าย OOS</a><a class="text-btn" href="requisition.html">2. เบิกสินค้า</a><button class="text-btn" id="new-round-btn">โหลด ProductList ล่าสุด</button><span id="user-label" class="user-label">ติดตามสินค้าและป้าย</span><button id="account-btn" class="icon-btn" title="ข้อมูลผู้ใช้งาน" aria-label="ข้อมูลผู้ใช้งาน">☰</button></div>
   </header>
   <section id="login-view" class="login-wrap">
     <div class="login-intro"><span class="eyebrow">งานหน้าร้าน เป็นระบบขึ้น</span><h1>ติดตามของขาด<br>เติมกลับเข้าชั้น</h1><p>สแกนป้าย เก็บตำแหน่ง และเห็นทันที<br>ว่ารายการไหนมีสต๊อกพร้อมให้ตรวจเติม</p><div class="shelf-art" aria-hidden="true"><span></span><span></span><span class="missing">OOS</span><span></span><i></i></div></div>
     <form id="login-form" class="panel login-form"><span class="eyebrow">เริ่มงานวันนี้</span><h2>เข้าสู่ระบบ</h2>
       <p id="setup-notice" class="notice" hidden>ยังไม่ได้เชื่อมต่อระบบ ผู้ดูแลต้องติดตั้งตามคู่มือก่อนใช้งานจริง</p>
-      <label>ชื่อพนักงาน<input id="actor" autocomplete="name" required maxlength="80" placeholder="ชื่อที่ใช้บันทึกงาน"></label>
-      <label>รหัสสาขา<input id="branch" inputmode="numeric" required maxlength="30" value="1000"></label>
-      <label>รหัสเข้าใช้งาน<input id="access-key" type="password" autocomplete="current-password" required placeholder="รับรหัสจากหัวหน้างาน"></label>
-      <p class="form-error" id="login-error" role="alert"></p><button class="btn primary full" id="login-submit">เข้าสู่ระบบ <span>↗</span></button>
+      <p>ใช้บัญชี LINE ที่ลงทะเบียนกับบอตเดิม ระบบจะดึงชื่อและสิทธิ์จากทะเบียนพนักงานอัตโนมัติ</p>
+      <p class="form-error" id="login-error" role="alert"></p><button class="btn primary full" id="login-submit">เข้าสู่ระบบด้วย LINE <span>↗</span></button>
       <a class="demo-link" href="?demo=1">ดูตัวอย่างหน้าจอ</a>
     </form>
   </section>
@@ -28,6 +26,7 @@
     <aside class="sidebar"><div class="workspace-label">งานหน้าร้าน</div><button class="side-link active" data-filter="ready"><span>▦</span> รายการ OOS</button><button class="side-link" data-filter="closed"><span>◷</span> ประวัติการเติม</button><div class="sidebar-guide"><span class="guide-dot"></span><h3>ป้ายอยู่ที่ไหน?</h3><p>เก็บบน top stock<br>ให้ตรงกับ Section<br>ที่บันทึกไว้ในระบบ</p></div><div class="sidebar-footer">OOS TRACKER <span>v2.0</span></div></aside>
     <div class="workspace">
       <div class="page-heading"><div><span class="eyebrow" id="branch-label">สาขา 1000</span><h1>จัดการสินค้า OOS</h1><p>จากป้ายที่เก็บไว้ กลับไปเป็นสินค้าบนชั้น</p></div><button class="btn secondary" id="refresh-btn"><span>↻</span> อัปเดตรายการ</button></div>
+      <p id="source-detail" class="small muted"></p>
       <div id="health" class="health" role="status"></div>
       <section class="stats" aria-label="สรุปสถานะ"><button class="stat stat-ready" data-filter="ready"><span class="stat-label"><i></i> พบสต๊อก รอเติม</span><strong id="count-ready">—</strong><small>ตรวจของ แล้วเติมเข้าชั้น <span>↗</span></small></button><button class="stat" data-filter="waiting"><span class="stat-label"><i class="amber"></i> ยังรอสินค้า</span><strong id="count-waiting">—</strong><small>คงเหลือในชีทเป็น 0</small></button><button class="stat" data-filter="review"><span class="stat-label"><i class="red"></i> ตรวจสอบข้อมูล</span><strong id="count-review">—</strong><small>ยอดว่าง หรือข้อมูลไม่ตรงกัน</small></button></section>
       <section class="quick-actions"><div class="quick-caption"><span class="scan-symbol" aria-hidden="true">▥</span><div><h2>เจอของขาด หรือเติมเสร็จแล้ว?</h2><p>สแกนป้ายเพื่อบันทึกงานได้เลย</p></div></div><div class="action-buttons"><button class="btn secondary" id="refill-btn">✓ สแกนเติมสินค้าแล้ว</button><button class="btn primary" id="add-btn">+ สแกนป้าย OOS</button></div></section>
@@ -35,7 +34,7 @@
         <div class="search-row"><label class="search-label"><span aria-hidden="true">⌕</span><input id="search" aria-label="ค้นหาสินค้า" placeholder="ค้นหาชื่อสินค้า บาร์โค้ด หรือรหัส"></label><input id="section-filter" aria-label="กรอง Section" placeholder="ทุก Section" maxlength="40"></div>
         <div class="table-labels"><span>สินค้า / ตำแหน่งป้าย</span><span>คงเหลือ</span><span>สถานะ / จัดการ</span></div><div id="records" aria-live="polite"></div><div class="list-footer"><span id="list-status" class="small muted"></span><button id="load-more" class="text-btn" hidden>ดูเพิ่มอีก 50 รายการ ↓</button></div>
       </section>
-      <div class="bottom-note"><span>ยอดสต๊อกอ้างอิง Export ล่าสุดบน Google Drive</span><a href="warehouse.html">ประวัติใบเบิกระบบเดิม</a></div>
+      <div class="bottom-note"><span>ยอดสต๊อกอ้างอิง ProductList บน Google Sheets</span><a href="warehouse.html">ประวัติใบเบิกระบบเดิม</a></div>
     </div>
   </main>
   <dialog id="scan-dialog"><div class="dialog-heading"><div><span class="eyebrow">สแกนป้ายสินค้า</span><h2 id="scan-title">บันทึกสินค้า OOS</h2></div><button class="icon-btn" data-close="scan-dialog" aria-label="ปิด">×</button></div>
@@ -46,6 +45,6 @@
     <div id="existing-record" hidden></div><p id="demo-scan-hint" class="small muted" hidden>ลองพิมพ์ DEMO-NEW เพื่อเพิ่มสินค้า หรือ DEMO-001 เพื่อเติมรายการตัวอย่าง</p>
   </dialog>
   <dialog id="detail-dialog"><div class="dialog-heading"><div><span class="eyebrow">จัดการรายการ</span><h2 id="detail-title">เติมสินค้าและคืนป้าย</h2></div><button class="icon-btn" data-close="detail-dialog" aria-label="ปิด">×</button></div><div id="detail-product" class="product-preview"></div><form id="close-form"><label class="check-row"><input type="checkbox" id="confirm-filled" required><span>เติมสินค้าบนชั้นเรียบร้อยแล้ว</span></label><label class="check-row"><input type="checkbox" id="confirm-label" required><span>นำป้ายกลับติดที่ชั้น และตรวจราคาปัจจุบันแล้ว</span></label><p id="close-error" class="form-error" role="alert"></p><button class="btn primary full" id="close-record">ยืนยันเติมสินค้าและปิดรายการ</button></form><details id="edit-section-details"><summary>แก้ไข Section หรือตำแหน่งเก็บป้าย</summary><form id="section-form"><label>Section<input id="edit-section" required maxlength="40"></label><label>ตำแหน่งเก็บป้าย<input id="edit-location" maxlength="120"></label><p id="section-error" class="form-error" role="alert"></p><button class="btn secondary full">บันทึกตำแหน่งใหม่</button></form></details></dialog>
-  <dialog id="account-dialog"><div class="dialog-heading"><h2>ข้อมูลผู้ใช้งาน</h2><button class="icon-btn" data-close="account-dialog" aria-label="ปิด">×</button></div><p id="account-info"></p><div id="admin-controls" hidden><h3>อัปเดตชีทต้นทาง</h3><p class="muted small">หยุดตรวจสต๊อกก่อนวางข้อมูลหลายชุด แล้วเปิดอีกครั้งเมื่อข้อมูลครบ</p><button class="btn secondary full" id="pause-btn">หยุดตรวจสต๊อกชั่วคราว</button><p id="pause-error" class="form-error" role="alert"></p></div><button class="text-btn" id="logout-btn">ออกจากระบบ / เปลี่ยนสาขา</button></dialog>
+  <dialog id="account-dialog"><div class="dialog-heading"><h2>ข้อมูลผู้ใช้งาน</h2><button class="icon-btn" data-close="account-dialog" aria-label="ปิด">×</button></div><p id="account-info"></p><div id="admin-controls" hidden><h3>อัปเดตชีทต้นทาง</h3><p class="muted small">หยุดตรวจสต๊อกก่อนวางข้อมูลหลายชุด แล้วเปิดอีกครั้งเมื่อข้อมูลครบ</p><button class="btn secondary full" id="pause-btn">หยุดตรวจสต๊อกชั่วคราว</button><p id="pause-error" class="form-error" role="alert"></p></div><button class="text-btn" id="logout-btn">ออกจากระบบ LINE</button></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 </body></html>
