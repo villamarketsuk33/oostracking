@@ -24,9 +24,21 @@
   const readCapabilities = scanner => {try{return scanner.getRunningTrackCapabilities?.() || {};}catch{return {};}};
   const range = value => value && Number.isFinite(value.min) && Number.isFinite(value.max) && value.max > value.min;
   const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
+  function normalize(value) {
+    // AIM identifiers (e.g. ]C1) are scanner metadata, not product digits.
+    const digits=String(value??'').trim().replace(/^\][A-Za-z]\d/,'').replace(/\D/g,'');
+    if(digits.length<2)throw new Error('อ่านรหัสไม่ครบ กรุณาสแกนใหม่');
+    const code=digits.slice(0,-1).replace(/^0/,'');
+    if(!code)throw new Error('อ่านรหัสไม่ครบ กรุณาสแกนใหม่');
+    return code;
+  }
 
   function create({boxId,readerId,onDetected,onError}) {
     const reader = document.getElementById(readerId), box = document.getElementById(boxId);
+    // A separate top-layer dialog keeps the camera centered even when opened
+    // from a long form or another dialog. No page scrolling is required.
+    const modal=document.createElement('dialog');modal.className='camera-dialog';modal.setAttribute('aria-label','สแกนบาร์โค้ด');
+    box.remove();modal.append(box);document.body.append(modal);
     const ui = name => box.querySelector('[data-camera-'+name+']');
     const hint = ui('hint'), status = ui('status'), camera = ui('select'), cameraLabel = ui('choice');
     const zoom = ui('zoom'), zoomLabel = ui('zoom-label'), zoomValue = ui('zoom-value');
@@ -83,6 +95,7 @@
     }
     async function stop() {
       ++generation;box.hidden = true;
+      if(modal.open)modal.close();
       return enqueue(async () => {await controls;await dispose(current);});
     }
     async function apply(session,patch) {
@@ -159,6 +172,7 @@
         await controls;await dispose(current);
         if (token !== generation) return;
         box.hidden = false;resetControls();
+        document.activeElement?.blur?.();if(!modal.open)modal.showModal();modal.scrollTop=0;
         let session;
         try {
           if (!window.isSecureContext) throw new Error('กล้องต้องเปิดผ่าน HTTPS ใช้ช่องพิมพ์บาร์โค้ดแทนได้');
@@ -192,7 +206,7 @@
           await configure(session);
         } catch(error) {
           await dispose(session);
-          if(token === generation){box.hidden = true;onError(message(error));}
+          if(token === generation){box.hidden = true;if(modal.open)modal.close();onError(message(error));}
         }
       });
     }
@@ -213,8 +227,10 @@
       if(await apply(session,{focusMode:session.focusMode})) status.textContent = 'กำลังโฟกัส ให้ถือป้ายนิ่งสักครู่';
     }));
     camera.addEventListener('change',() => {camera.disabled = true;start(camera.value);});
+    modal.addEventListener('cancel',event=>{event.preventDefault();stop();});
+    modal.addEventListener('close',()=>{if(!box.hidden)stop();});
     window.addEventListener('pagehide',stop);
     return {start,stop};
   }
-  window.BarcodeCamera = {create};
+  window.BarcodeCamera = {create,normalize};
 })();

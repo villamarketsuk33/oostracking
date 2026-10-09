@@ -13,7 +13,7 @@
   function busy(root,on) {root.dataset.busy=String(on);root.querySelectorAll('button,input').forEach(el=>el.disabled=on);}
   async function api(action,data={}) {
     if(demo)return window.OOS_DEMO.request({action,...data,actor:state.auth?.actor,branch:state.auth?.branch});
-    return window.LineAuth.request(action,data);
+    return window.ExportGate.request((action,data)=>window.LineAuth.request(action,data),action,data);
   }
   function showHealth(h) {
     state.health=h;
@@ -21,15 +21,28 @@
     $('health').textContent=msg;$('health').className='health'+(h.error?' error':h.paused||h.pending?' warning':'');
     $('pause-btn').textContent=h.paused?'อัปเดตข้อมูลครบแล้ว เริ่มตรวจสต๊อก':'หยุดตรวจสต๊อกชั่วคราว';
   }
-  async function enter() {
-    const data=await api('bootstrap');state.auth=demo?{...state.auth,role:data.role}:data.employee;
+  let entering=null;
+  function enter(){if(!entering)entering=startSession().finally(()=>{entering=null;});return entering;}
+  async function startSession() {
+    const data=await api('bootstrap',demo?{}:{startSession:true,view:'oos',filter:state.filter,roundToken:window.ExportGate.prepare()});state.auth=demo?{...state.auth,role:data.role}:data.employee;
     if(!state.auth?.actor)throw new Error('ระบบตอบข้อมูลพนักงานไม่ครบ');
     $('login-view').hidden=true;$('app-view').hidden=false;
     $('user-label').textContent=state.auth.actor+' · '+state.auth.branch;
     $('branch-label').textContent='สาขา '+state.auth.branch;
     $('admin-controls').hidden=data.role!=='admin';showHealth(data.health);
-    if(!demo)await window.ExportGate.resume(api)||await window.ExportGate.unlock(api);
-    await load();
+    if(!demo) {
+      if(data.round)window.ExportGate.accept(data.round);
+      else if(data.roundError){$('source-detail').textContent=data.roundError.message;toast(data.roundError.message,true);}
+      else await window.ExportGate.resume(api)||await window.ExportGate.unlock(api);
+    }
+    if(data.list)showList(data.list);else await load();
+  }
+  function showList(data,more=false){
+    state.page=data.page||1;state.records=more?state.records.concat(data.records):data.records;
+    ['ready','waiting','review'].forEach(k=>{$('count-'+k).textContent=Number(data.counts[k]||0).toLocaleString('th-TH');});
+    $('total-label').textContent=data.total+' รายการ';showHealth(data.health);
+    $('list-updated').textContent='อ่านรายการ '+new Intl.DateTimeFormat('th-TH',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Bangkok'}).format(new Date());
+    renderRecords();$('load-more').hidden=!data.hasMore;$('list-status').textContent='แสดง '+state.records.length+' จาก '+data.total+' รายการ';
   }
   async function load(more=false) {
     const generation=++state.listGeneration;
@@ -38,11 +51,7 @@
       const page=more?state.page+1:1;
       const data=await api('list',{filter:state.filter,query:$('search').value.trim(),section:$('section-filter').value.trim(),page});
       if(generation!==state.listGeneration)return;
-      state.page=page;state.records=more?state.records.concat(data.records):data.records;
-      ['ready','waiting','review'].forEach(k=>{$('count-'+k).textContent=Number(data.counts[k]||0).toLocaleString('th-TH');});
-      $('total-label').textContent=data.total+' รายการ';showHealth(data.health);
-      $('list-updated').textContent='อ่านรายการ '+new Intl.DateTimeFormat('th-TH',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Bangkok'}).format(new Date());
-      renderRecords();$('load-more').hidden=!data.hasMore;$('list-status').textContent='แสดง '+state.records.length+' จาก '+data.total+' รายการ';
+      showList(data,more);
     } catch(error) {
       if(generation!==state.listGeneration)return;
       if(!more){state.records=[];$('records').replaceChildren(make('div','empty','อ่านรายการไม่สำเร็จ กรุณากดอัปเดตรายการอีกครั้ง'));}
@@ -99,12 +108,13 @@
     state.mode=mode;state.lookup=null;state.requestId=null;
     $('scan-title').textContent=mode==='create'?'บันทึกสินค้า OOS':'สแกนสินค้าที่เติมแล้ว';
     $('lookup-form').reset();$('create-form').reset();$('create-form').hidden=true;$('existing-record').hidden=true;$('scan-error').textContent='';
-    $('scan-dialog').showModal();setTimeout(()=>$('barcode').focus(),50);
+    $('scan-dialog').showModal();if(!window.matchMedia?.('(pointer: coarse)').matches)setTimeout(()=>$('barcode').focus(),50);
   }
   async function lookup() {
     await stopCamera();$('scan-error').textContent='';$('create-form').hidden=true;$('existing-record').hidden=true;
     busy($('scan-dialog'),true);$('lookup-btn').textContent='กำลังค้นหา…';
     try {
+      if(/^\][A-Za-z]\d/.test($('barcode').value.trim()))$('barcode').value=window.BarcodeCamera.normalize($('barcode').value);
       const barcode=$('barcode').value.trim(), data=await api('lookup',{barcode});state.lookup=data;
       if(data.active) {
         if(state.mode==='close') {$('scan-dialog').close();openDetail(data.active);return;}
@@ -132,11 +142,11 @@
     $('detail-dialog').showModal();
   }
   const barcodeCamera = window.BarcodeCamera.create({boxId:'camera-box',readerId:'camera-reader',
-    onDetected:async code=>{$('barcode').value=code;await lookup();},
+    onDetected:async code=>{$('barcode').value=window.BarcodeCamera.normalize(code);await lookup();},
     onError:message=>{$('scan-error').textContent=message;}
   });
   async function startCamera() {
-    $('camera-btn').disabled=true;$('scan-error').textContent='';
+    $('camera-btn').disabled=true;$('scan-error').textContent='';state.lookup=null;$('create-form').hidden=true;$('existing-record').hidden=true;
     try{await barcodeCamera.start();}finally{$('camera-btn').disabled=false;}
   }
   async function stopCamera() {await barcodeCamera.stop();}

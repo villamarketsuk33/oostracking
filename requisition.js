@@ -2,7 +2,7 @@
   'use strict';
   const $=id=>document.getElementById(id), config=window.OOS_CONFIG||{};
   const demo=config.demo===true||new URLSearchParams(location.search).get('demo')==='1';
-  const state={auth:null,cart:[],lookup:null,pending:null,document:null,cancel:false,busy:false,round:null};
+  const state={auth:null,cart:[],lookup:null,pending:null,document:null,cancel:false,busy:false,searching:false,round:null};
   const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
   const time=v=>v?new Intl.DateTimeFormat('th-TH',{dateStyle:'short',timeStyle:'short',timeZone:'Asia/Bangkok'}).format(new Date(v)):'—';
   const count=v=>Number(v).toLocaleString('th-TH',{maximumFractionDigits:3});
@@ -10,7 +10,7 @@
   const pendingKey=()=>`rq-pending:${state.auth.branch}:${state.auth.lineUserId||state.auth.actor}`;
   async function api(action,data={}) {
     if(demo)return window.RequisitionDemo.request({...data,action,actor:state.auth.actor,branch:state.auth.branch});
-    return window.LineAuth.request(action,data);
+    return window.ExportGate.request((action,data)=>window.LineAuth.request(action,data),action,data);
   }
   function lock(on) {
     state.busy=on;
@@ -29,8 +29,10 @@
     const transferred=resume?await window.ExportGate.resume(api):null;
     showSnapshot(transferred||await window.ExportGate.unlock(api));
   }
-  async function enter() {
-    const data=await api('bootstrap');state.auth=demo?{...state.auth,role:data.role}:data.employee;
+  let entering=null;
+  function enter(){if(!entering)entering=startSession().finally(()=>{entering=null;});return entering;}
+  async function startSession() {
+    const data=await api('bootstrap',demo?{}:{startSession:true,view:'requisition',roundToken:window.ExportGate.prepare()});state.auth=demo?{...state.auth,role:data.role}:data.employee;
     if(!state.auth?.actor)throw new Error('ระบบตอบข้อมูลพนักงานไม่ครบ');
     $('rq-login').hidden=true;$('rq-work').hidden=false;$('rq-logout').hidden=false;
     $('rq-user').textContent='สาขา '+state.auth.branch+' · '+state.auth.actor;
@@ -40,7 +42,9 @@
     if(state.pending) {
       $('rq-source-time').textContent='มีคำขอเดิมรอยืนยันผล — กดลองบันทึกคำขอเดิม';
     } else {
-      await startRound(true);
+      if(data.round)window.ExportGate.accept(data.round);
+      else if(data.roundError)$('rq-search-error').textContent=data.roundError.message;
+      else await startRound(true);
       const transfer=storage.get('villa-oos-to-requisition');storage.remove('villa-oos-to-requisition');
       if(transfer&&transfer.branch===state.auth.branch&&transfer.productCode) {
         $('rq-lookup-type').value='sku';$('rq-query').value=transfer.productCode;
@@ -51,14 +55,17 @@
         }
       }
     }
-    $('rq-query').focus();
+    if(!window.matchMedia?.('(pointer: coarse)').matches)$('rq-query').focus();
   }
   async function lookup() {
-    if(state.pending||state.busy)return;
+    if(state.pending||state.busy||state.searching)return;
+    state.searching=true;
     $('rq-search-error').textContent='';$('rq-item-form').hidden=true;$('rq-search-empty').hidden=true;
-    state.lookup=null;$('rq-search-btn').disabled=true;
+    state.lookup=null;$('rq-search-btn').disabled=true;$('rq-search-btn').textContent='กำลังค้นหา…';
+    ['rq-query','rq-lookup-type','rq-camera-btn'].forEach(id=>$(id).disabled=true);
     $('rq-name-results').replaceChildren();
     try {
+      if($('rq-lookup-type').value==='barcode'&&/^\][A-Za-z]\d/.test($('rq-query').value.trim()))$('rq-query').value=window.BarcodeCamera.normalize($('rq-query').value);
       if($('rq-lookup-type').value==='name') {
         const data=await api('req.search',{query:$('rq-query').value.trim()}), root=$('rq-name-results');
         if(!data.products.length)root.append(el('p','ไม่พบชื่อสินค้านี้ใน ProductList'));
@@ -81,7 +88,7 @@
       $('rq-item-form').reset();$('rq-section').value=p.section||'';$('rq-qty').max=String(p.stock);$('rq-qty').value=String(Math.min(1,Math.max(0,p.stock)));
       $('rq-item-form').hidden=false;$('rq-add-btn').disabled=p.stock<=0||data.openDocuments.length>0;
     } catch(error){$('rq-search-error').textContent=error.message;}
-    finally{$('rq-search-btn').disabled=false;}
+    finally{state.searching=false;$('rq-search-btn').disabled=false;$('rq-search-btn').textContent='ค้นหาสินค้า';['rq-query','rq-lookup-type','rq-camera-btn'].forEach(id=>$(id).disabled=Boolean(state.pending));}
   }
   function renderCart() {
     const root=$('rq-cart');root.replaceChildren();$('rq-count').textContent=state.cart.length;
@@ -183,13 +190,13 @@
     $('rq-finish-checks').hidden=cancel;$('rq-confirm-filled').required=!cancel;$('rq-confirm-label').required=!cancel;$('rq-finish-note').required=cancel;$('rq-finish-dialog').showModal();
   }
   const barcodeCamera = window.BarcodeCamera.create({boxId:'rq-camera-box',readerId:'rq-camera-reader',
-    onDetected:async code=>{$('rq-query').value=code;$('rq-lookup-type').value='barcode';await lookup();},
+    onDetected:async code=>{$('rq-query').value=window.BarcodeCamera.normalize(code);$('rq-lookup-type').value='barcode';await lookup();},
     onError:message=>{$('rq-search-error').textContent=message;}
   });
   async function stopCamera() {await barcodeCamera.stop();$('rq-camera-btn').disabled=false;}
   async function startCamera() {
-    if(state.pending)return;
-    $('rq-camera-btn').disabled=true;$('rq-search-error').textContent='';
+    if(state.pending||state.busy||state.searching)return;
+    $('rq-camera-btn').disabled=true;$('rq-search-error').textContent='';state.lookup=null;$('rq-item-form').hidden=true;
     try{await barcodeCamera.start();}finally{$('rq-camera-btn').disabled=Boolean(state.pending);}
   }
   $('rq-login-form').addEventListener('submit',async e=>{e.preventDefault();const btn=e.currentTarget.querySelector('button');btn.disabled=true;$('rq-login-error').textContent='';try{if(demo||await window.LineAuth.login())await enter();}catch(error){$('rq-login').hidden=false;$('rq-work').hidden=true;$('rq-login-error').textContent=error.message;}finally{btn.disabled=false;}});
@@ -204,6 +211,7 @@
   setInterval(()=>{if(!demo&&state.round&&Date.now()>=Date.parse(state.round.expiresAt)){$('rq-source-time').textContent='ข้อมูลหมดอายุ — กดโหลด ProductList ล่าสุดก่อนเบิกใบใหม่';}},30000);
   window.addEventListener('beforeunload',e=>{if(state.cart.length){e.preventDefault();e.returnValue='';}});
   $('rq-demo').hidden=!demo;$('rq-demo-hint').hidden=!demo;
+  window.ExportGate.onChange(showSnapshot);
   if(demo){state.auth={actor:'พนักงานตัวอย่าง',branch:'1000',accessKey:'demo'};enter().catch(error=>{$('rq-login-error').textContent=error.message;});}
   else{storage.remove('oos-session');window.LineAuth.ready().then(logged=>{if(logged)return enter();}).catch(error=>{$('rq-login').hidden=false;$('rq-work').hidden=true;$('rq-login-error').textContent=error.message;});}
 })();

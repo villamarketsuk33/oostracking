@@ -10,3 +10,12 @@
 .camera-buttons{display:flex;flex-wrap:wrap;gap:8px}.camera-buttons .btn{flex:1;padding:9px 12px;font-size:13px;min-height:44px}.camera-controls .camera-status{font-size:12px;color:var(--green);margin:10px 0 4px}.camera-controls .camera-hint{font-size:12px;color:var(--muted);margin:0;line-height:1.7}
 #camera-box .text-btn,#rq-camera-box .text-btn{display:block;width:100%;margin:0;min-height:44px;border-top:1px solid var(--line)}
 #rq-camera-box.barcode-camera{padding:0}
+dialog.camera-dialog{position:fixed;inset:0;margin:auto;padding:0;width:540px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow:auto;border-radius:16px;overscroll-behavior:contain}
+.camera-dialog .barcode-camera{margin:0;border:0;border-radius:0}
+.camera-dialog .camera-view{height:300px;height:clamp(170px,40dvh,340px);min-height:0;overflow:hidden}
+.camera-dialog .camera-reader{height:100%}
+.camera-dialog .camera-reader video{height:100%!important;width:100%!important;object-fit:contain}
+.camera-dialog .camera-controls{padding:10px 14px}
+.camera-dialog .camera-controls label{margin-bottom:8px}
+.camera-dialog .camera-hint{font-size:11px;line-height:1.5}
+@media(max-height:600px){.camera-dialog .camera-view{height:35vh;height:35dvh}.camera-dialog .camera-controls{padding:7px 12px}.camera-dialog .camera-hint{display:none}}
