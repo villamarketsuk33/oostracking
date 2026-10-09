@@ -107,7 +107,7 @@
   function openScan(mode) {
     state.mode=mode;state.lookup=null;state.requestId=null;
     $('scan-title').textContent=mode==='create'?'บันทึกสินค้า OOS':'สแกนสินค้าที่เติมแล้ว';
-    $('lookup-form').reset();$('create-form').reset();$('create-form').hidden=true;$('existing-record').hidden=true;$('scan-error').textContent='';
+    $('lookup-form').reset();$('create-form').reset();$('create-form').hidden=true;$('existing-record').hidden=true;$('scan-error').textContent='';$('create-error').textContent='';
     $('scan-dialog').showModal();if(!window.matchMedia?.('(pointer: coarse)').matches)setTimeout(()=>$('barcode').focus(),50);
   }
   async function lookup() {
@@ -127,8 +127,9 @@
       if(data.product.issue||data.product.stock!==0)throw new Error(data.product.issue||'ยอดคงเหลือในชีทไม่เป็น 0 จึงยังบันทึก OOS ไม่ได้');
       state.requestId=uuid();$('create-form').reset();previewProduct($('lookup-product'),data.product);
       $('new-section').value=data.section||'';$('new-location').value=data.labelLocation||'';
-      $('section-hint').textContent=data.section?'ดึง Section ที่เคยบันทึกไว้แล้ว แก้ได้หากมีการย้ายสินค้า':'ครั้งแรกของสินค้านี้ กรุณาระบุ Section ระบบจะจำไว้ครั้งต่อไป';
+      $('section-hint').textContent=data.section?'ดึงตำแหน่งที่เคยบันทึกไว้แล้ว ตรวจหรือแก้ได้หากมีการย้ายสินค้า':'ครั้งแรกของสินค้านี้ กรุณาระบุ Section และตำแหน่งชั้นวาง';
       $('create-form').hidden=false;
+      $('create-error').textContent='';$('scan-dialog').close();$('create-dialog').showModal();
     } catch(error) {$('scan-error').textContent=error.message;}
     finally {busy($('scan-dialog'),false);$('lookup-btn').textContent='ค้นหา';}
   }
@@ -156,13 +157,14 @@
   });
   $('lookup-form').addEventListener('submit',e=>{e.preventDefault();lookup();});
   $('create-form').addEventListener('submit',async e=>{
-    e.preventDefault();if(!state.lookup)return;$('scan-error').textContent='';
+    e.preventDefault();if(!state.lookup)return;$('create-error').textContent='';
     const payload={requestId:state.requestId,barcode:state.lookup.product.barcode,section:$('new-section').value.trim(),labelLocation:$('new-location').value.trim(),note:$('new-note').value.trim(),confirmedZero:$('confirm-zero').checked};
-    busy($('scan-dialog'),true);$('save-oos').textContent='กำลังยืนยันการบันทึก…';
-    try {const data=await api('create',payload);if(!data.record?.id)throw new Error('ยังยืนยันผลการบันทึกไม่ได้ กรุณาลองอีกครั้ง');$('scan-dialog').close();toast(data.alreadyOpen?'มีรายการเดิมอยู่แล้ว ระบบไม่สร้างซ้ำ':'บันทึก OOS แล้ว เก็บป้ายตาม Section ได้เลย');selectFilter('waiting');}
-    catch(error){$('scan-error').textContent=error.message;}
-    finally{busy($('scan-dialog'),false);$('save-oos').textContent='บันทึก OOS และจำ Section';}
+    busy($('create-dialog'),true);$('save-oos').textContent='กำลังยืนยันการบันทึก…';
+    try {const data=await api('create',payload);if(!data.record?.id)throw new Error('ยังยืนยันผลการบันทึกไม่ได้ กรุณาลองอีกครั้ง');$('create-dialog').close();toast(data.alreadyOpen?'มีรายการเดิมอยู่แล้ว ระบบไม่สร้างซ้ำ':'บันทึก OOS และตำแหน่งสินค้าแล้ว');selectFilter('waiting');}
+    catch(error){$('create-error').textContent=error.message;}
+    finally{busy($('create-dialog'),false);$('save-oos').textContent='ยืนยันบันทึก OOS';}
   });
+  $('placement-rescan').addEventListener('click',()=>{if($('create-dialog').dataset.busy==='true')return;$('create-dialog').close();openScan('create');});
   $('close-form').addEventListener('submit',async e=>{
     e.preventDefault();$('close-error').textContent='';const id=state.detail.id;
     const payload={id,requestId:state.closeRequestId,confirmedFilled:$('confirm-filled').checked,confirmedLabel:$('confirm-label').checked};

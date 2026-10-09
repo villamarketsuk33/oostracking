@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#172d32"><meta name="referrer" content="no-referrer">
   <title>OOS — ติดตามสินค้าและป้าย</title>
-  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="camera.css?v=20261008-fast1">
-  <script src="config.js" defer></script><script src="https://static.line-scdn.net/liff/edge/2/sdk.js" defer></script><script src="line-auth.js?v=20261008-fast1" defer></script><script src="demo.js" defer></script><script src="export-gate.js?v=20261008-fast1" defer></script><script src="barcode-camera.js?v=20261008-fast1" defer></script><script src="app.js?v=20261008-fast1" defer></script>
+  <link rel="stylesheet" href="styles.css?v=20261009-session1"><link rel="stylesheet" href="camera.css?v=20261009-session1">
+  <script src="config.js" defer></script><script src="line-auth.js?v=20261009-session1" defer></script><script src="demo.js" defer></script><script src="export-gate.js?v=20261009-session1" defer></script><script src="barcode-camera.js?v=20261009-session1" defer></script><script src="app.js?v=20261009-session1" defer></script>
 </head>
 <body>
   <div class="demo-banner" id="demo-banner" hidden>โหมดตัวอย่าง · ข้อมูลจำลอง ไม่บันทึกลงชีท</div>
@@ -46,8 +46,20 @@
       <p class="camera-status" data-camera-status role="status" aria-live="polite"></p><p class="camera-hint" data-camera-hint></p>
     </div><button type="button" class="text-btn" id="stop-camera">หยุดกล้อง</button></div>
     <p id="scan-error" class="form-error" role="alert"></p>
-    <form id="create-form" hidden><div id="lookup-product" class="product-preview"></div><div class="two-fields"><label>Section<input id="new-section" required maxlength="40" placeholder="เช่น 12"></label><label>ตำแหน่งเก็บป้าย<input id="new-location" maxlength="120" placeholder="เช่น top stock ช่องซ้าย"></label></div><p id="section-hint" class="small muted"></p><label>หมายเหตุ (ถ้ามี)<input id="new-note" maxlength="500"></label><label class="check-row"><input type="checkbox" id="confirm-zero" required><span>ตรวจสต๊อกแล้วเป็น 0 และนำป้ายออกแล้ว</span></label><button class="btn primary full" id="save-oos">บันทึก OOS และจำ Section</button></form>
     <div id="existing-record" hidden></div><p id="demo-scan-hint" class="small muted" hidden>ลองพิมพ์ DEMO-NEW เพื่อเพิ่มสินค้า หรือ DEMO-001 เพื่อเติมรายการตัวอย่าง</p>
+  </dialog>
+  <dialog id="create-dialog" class="placement-dialog" aria-labelledby="placement-title">
+    <div class="dialog-heading"><div><span class="eyebrow">พบสินค้าแล้ว</span><h2 id="placement-title">ระบุ Section และตำแหน่งชั้นวาง</h2></div><button type="button" class="icon-btn" data-close="create-dialog" aria-label="ยกเลิก">×</button></div>
+    <form id="create-form" hidden>
+      <div id="lookup-product" class="product-preview"></div>
+      <div class="two-fields"><label>Section<input id="new-section" required maxlength="40" placeholder="เช่น S63"></label><label>ตำแหน่งแผ่นชั้นวาง<input id="new-location" maxlength="120" placeholder="เช่น B-2 หรือชั้น 3 ช่องซ้าย"></label></div>
+      <p id="section-hint" class="small muted"></p>
+      <label>หมายเหตุ (ถ้ามี)<input id="new-note" maxlength="500"></label>
+      <label class="check-row"><input type="checkbox" id="confirm-zero" required><span>ตรวจสต๊อกแล้วเป็น 0 และนำป้ายออกแล้ว</span></label>
+      <p id="create-error" class="form-error" role="alert"></p>
+      <button class="btn primary full" id="save-oos">ยืนยันบันทึก OOS</button>
+      <button type="button" class="text-btn full" id="placement-rescan">กลับไปสแกนสินค้า</button>
+    </form>
   </dialog>
   <dialog id="detail-dialog"><div class="dialog-heading"><div><span class="eyebrow">จัดการรายการ</span><h2 id="detail-title">เติมสินค้าและคืนป้าย</h2></div><button class="icon-btn" data-close="detail-dialog" aria-label="ปิด">×</button></div><div id="detail-product" class="product-preview"></div><form id="close-form"><label class="check-row"><input type="checkbox" id="confirm-filled" required><span>เติมสินค้าบนชั้นเรียบร้อยแล้ว</span></label><label class="check-row"><input type="checkbox" id="confirm-label" required><span>นำป้ายกลับติดที่ชั้น และตรวจราคาปัจจุบันแล้ว</span></label><p id="close-error" class="form-error" role="alert"></p><button class="btn primary full" id="close-record">ยืนยันเติมสินค้าและปิดรายการ</button></form><details id="edit-section-details"><summary>แก้ไข Section หรือตำแหน่งเก็บป้าย</summary><form id="section-form"><label>Section<input id="edit-section" required maxlength="40"></label><label>ตำแหน่งเก็บป้าย<input id="edit-location" maxlength="120"></label><p id="section-error" class="form-error" role="alert"></p><button class="btn secondary full">บันทึกตำแหน่งใหม่</button></form></details></dialog>
   <dialog id="account-dialog"><div class="dialog-heading"><h2>ข้อมูลผู้ใช้งาน</h2><button class="icon-btn" data-close="account-dialog" aria-label="ปิด">×</button></div><p id="account-info"></p><div id="admin-controls" hidden><h3>อัปเดตชีทต้นทาง</h3><p class="muted small">หยุดตรวจสต๊อกก่อนวางข้อมูลหลายชุด แล้วเปิดอีกครั้งเมื่อข้อมูลครบ</p><button class="btn secondary full" id="pause-btn">หยุดตรวจสต๊อกชั่วคราว</button><p id="pause-error" class="form-error" role="alert"></p></div><button class="text-btn" id="logout-btn">ออกจากระบบ LINE</button></dialog>
